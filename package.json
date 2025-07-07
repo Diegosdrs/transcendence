@@ -1,0 +1,20 @@
+{
+  "name": "pong-game",
+  "version": "1.0.0",
+  "description": "Jeu Pong en TypeScript",
+  "main": "dist/main.js",
+  "scripts": {
+    "serve": "live-server ./ --open=index.html",
+    "start": "npm run build && npx live-server",
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "concurrently \"npm run watch\" \"npx live-server\"",
+    "clean": "rm -rf dist/*"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0",
+    "live-server": "^1.2.2",
+    "typescript": "^5.8.3"
+  },
+  "type": "module"
+}
