@@ -21,7 +21,7 @@ function random_number(min, max) {
     while (true) {
         num = Math.random();
         const to_max = (num > max);
-        const to_min = (num <= min);
+        const to_min = (num < min);
         if (to_max || to_min)
             continue;
         return num;
@@ -59,9 +59,10 @@ class Pong {
                 paddle_height: 100,
                 ball_real_speed: 8,
                 ball_speed: 4.5,
+                ball_max_speed: 12,
                 paddle_speed: 8.5,
                 score_to_win: 5,
-                increase_vitesse: 5000,
+                increase_vitesse: 250,
                 time_before_new_ball: 3000
             };
         this.state =
@@ -92,7 +93,8 @@ class Pong {
                 left_paddle_y: (this.config.canvas_height - this.config.paddle_height) / 2,
                 right_paddle_y: (this.config.canvas_height - this.config.paddle_height) / 2,
                 marge: 5,
-                time_ia_in_frame: 0
+                time_ia_in_frame: 0,
+                current_shot: 0
             };
         this.ia =
             {
@@ -114,7 +116,9 @@ class Pong {
                 far_rebond: false,
                 far_far_rebond: false,
                 service: true,
-                delta_paddle: 0
+                delta_paddle: 0,
+                delta_error: 0,
+                error_percent: 0.2
             };
         this.setup_event();
         this.init_ball_direction();
@@ -204,12 +208,12 @@ class Pong {
             return;
         if (this.keys_pressed["w"] && this.paddle.left_paddle_y > 0)
             this.paddle.left_paddle_y -= this.config.paddle_speed;
-        if (this.keys_pressed["s"] && this.paddle.left_paddle_y < this.config.canvas_height - this.config.paddle_height)
+        if (this.keys_pressed["s"] && this.paddle.left_paddle_y < this.config.canvas_height - this.config.paddle_height - 0)
             this.paddle.left_paddle_y += this.config.paddle_speed;
         if (this.state.game_mode != "solo") {
             if (this.keys_pressed["ArrowUp"] && this.paddle.right_paddle_y > 0)
                 this.paddle.right_paddle_y -= this.config.paddle_speed;
-            if (this.keys_pressed["ArrowDown"] && this.paddle.right_paddle_y < this.config.canvas_height - this.config.paddle_height)
+            if (this.keys_pressed["ArrowDown"] && this.paddle.right_paddle_y < this.config.canvas_height - this.config.paddle_height - 0)
                 this.paddle.right_paddle_y += this.config.paddle_speed;
         }
     }
@@ -220,18 +224,46 @@ class Pong {
             return;
         this.ball.ball_x += this.ball.ball_dir_x;
         this.ball.ball_y += this.ball.ball_dir_y;
+        // !!!! la balle augmente de vitesse ici donc calcul fausse pour le this.ball.time_ia_in_frame !!!
+        // donc parfois la paddle IA n'intercepte pas la balle mais pas grave car l'erreur fait humaine
+        // (sinon a changer ici)
+        // PAS SURE FINALEMENT car la paddle s'arrette net, donc soit erreur de calcul soit prob de marge je sais pas 
+        if (performance.now() - this.start_time >= this.config.increase_vitesse && this.config.ball_speed < this.config.ball_max_speed) {
+            this.config.ball_speed += 0.1;
+            this.config.paddle_speed += 0.05;
+            this.start_time = performance.now();
+        }
         if (this.ball.ball_x < 0 || this.ball.ball_x > this.config.canvas_width) {
             this.state.is_paused = true;
-            console.log(`🎯 BUT ! ball_x = ${this.ball.ball_x}`);
+            console.log(`🎯 BUT ! ball_x = ${this.ball.ball_x} et ballspeed = ${this.config.ball_speed} et delta error = ${this.ia.delta_error} et delta_paddle = ${this.ia.delta_paddle}`);
             this.handle_goal();
             if (this.state.game_mode == "solo") {
                 this.state.ia_mode = false;
                 this.ia.service = true;
+                this.paddle.current_shot = 0;
+                this.ia.delta_error = 0;
+                this.ia.delta_paddle = 0;
             }
             return;
         }
         // Rebonds sur les murs haut et bas
-        if (this.ball.ball_y <= 0 || this.ball.ball_y >= this.config.canvas_height) {
+        if (this.ball.ball_y <= 5 || this.ball.ball_y >= this.config.canvas_height - 5) {
+            console.log(`AVANT rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
+            if (this.ball.ball_x <= 50) {
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                //console.log("ca passe ici zeubi")
+            }
+            if (this.ball.ball_x >= this.config.canvas_width - 50) {
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                //console.log("ca passe ici woula")
+            }
+            console.log(`APRES rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
             this.ball.ball_dir_y *= -1;
             this.ball.current_rebond++;
             this.normalize_ball_speed();
@@ -242,13 +274,8 @@ class Pong {
             this.ball.ball_y >= this.paddle.left_paddle_y - this.paddle.marge &&
             this.ball.ball_y <= this.paddle.left_paddle_y + this.config.paddle_height + this.paddle.marge &&
             this.ball.ball_dir_x < 0) {
-            if (performance.now() - this.start_time >= this.config.increase_vitesse && this.config.ball_speed < 15) {
-                this.config.ball_speed += 1.5;
-                this.config.paddle_speed += 0.5;
-                this.start_time = performance.now();
-            }
             console.log(`🏓 Rebond raquette gauche à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
-            if (this.config.ball_speed == 4.5)
+            if (this.config.ball_speed < this.config.ball_real_speed)
                 this.config.ball_speed = this.config.ball_real_speed;
             this.update_ball_dir(0);
             this.normalize_ball_speed();
@@ -259,6 +286,7 @@ class Pong {
                 this.ia_init_difficulty();
                 this.ia.counter = 0;
                 this.ball.current_rebond = 0;
+                this.paddle.current_shot++;
             }
         }
         // raquette droite
@@ -267,19 +295,14 @@ class Pong {
             this.ball.ball_y >= this.paddle.right_paddle_y - this.paddle.marge &&
             this.ball.ball_y <= this.paddle.right_paddle_y + this.config.paddle_height + this.paddle.marge &&
             this.ball.ball_dir_x > 0) {
-            if (performance.now() - this.start_time >= this.config.increase_vitesse && this.config.ball_speed < 15) {
-                this.config.ball_speed += 1.5;
-                this.config.paddle_speed += 0.5;
-                this.start_time = performance.now();
-            }
             console.log(`🏓 Rebond raquette droite à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
-            if (this.config.ball_speed == 4.5)
+            if (this.config.ball_speed < this.config.ball_real_speed)
                 this.config.ball_speed = this.config.ball_real_speed;
             this.update_ball_dir(1);
             this.normalize_ball_speed();
-            this.ball.current_rebond = 0;
             if (this.state.game_mode == "solo") {
                 this.state.ia_mode = false;
+                this.ball.current_rebond = 0;
             }
         }
     }
@@ -420,6 +443,8 @@ class Pong {
         this.ia.far_rebond = false;
         this.ia.far_far_rebond = false;
         this.ia.delta_paddle = this.ia_delta_paddle();
+        if (this.paddle.current_shot >= 4)
+            this.handle_ia_error();
     }
     ia_detection() {
         let x = this.ball.ball_x;
@@ -471,13 +496,19 @@ class Pong {
         console.log(`random_depart = ${random_depart}`);
         console.log(`random_move_1 = ${random_move_1}`);
         console.log(`random_move_2 = ${random_move_2}`);
+        // supression de l'erreur si paddle deja sur la trajectoire
+        if (this.ball.ia_y >= this.paddle.right_paddle_y && this.ball.ia_y <= this.paddle.right_paddle_y + this.config.paddle_height)
+            this.ia.delta_error = 0;
     }
     handle_paddle_move() {
-        if (this.ia.rebond == 0)
+        if (this.ia.rebond == 0) {
+            if (this.ia.delta_error != 0)
+                this.ia.random_move_1 = false;
             this.update_paddle_ia_with_time();
+        }
         else if (this.ia.rebond == 1 && this.ia.close_rebond == true)
             this.update_paddle_ia_with_1_close_rebond();
-        else if (this.ia.rebond = 1 || this.ia.far_rebond == true)
+        else if (this.ia.rebond == 1 && this.ia.far_rebond == true)
             this.update_paddle_ia_with_1_far_rebond();
         else if (this.ia.rebond == 2)
             this.update_paddle_ia_with_2_rebonds();
@@ -503,17 +534,20 @@ class Pong {
         }
         if (this.ia.move_2 >= (this.ia.counter - this.ia.move_1 - this.ia.depart)) {
             if (this.ia.ia_debug == true) {
-                let center_paddle = this.paddle.right_paddle_y + this.config.paddle_height / 2;
+                let center_paddle = this.ia.delta_error + this.ia.delta_paddle + this.paddle.right_paddle_y + this.config.paddle_height / 2;
                 let target_y = this.ball.ia_y;
                 let distance = target_y - center_paddle;
                 console.log("****** TIME move 2 *********");
-                console.log(`distance = ${distance}`);
+                console.log(`distance = ${Math.abs(distance)} et delta_paddle = ${this.ia.delta_paddle} et random = ${this.ia.random_move_2}`);
                 this.ia.ia_debug = false;
-                if (Math.abs(distance) < 10)
+                if (Math.abs(distance) < 30)
                     this.ia.random_move_2 = false;
             }
-            this.ia_ajustement(5, this.ia.random_move_2);
-            console.log("FIN DE MOOOOVE");
+            if (this.config.ball_speed > 11)
+                this.ia_ajustement(10, this.ia.random_move_2);
+            else
+                this.ia_ajustement(5, this.ia.random_move_2);
+            //console.log("FIN DE MOOOOVE");
             return;
         }
     }
@@ -538,17 +572,20 @@ class Pong {
         }
         if (this.ia.move_2 >= (this.ia.counter - this.ia.move_1 - this.ia.depart)) {
             if (this.ia.ia_debug == true) {
-                let center_paddle = this.paddle.right_paddle_y + this.config.paddle_height / 2;
+                let center_paddle = this.ia.delta_error + this.ia.delta_paddle + this.paddle.right_paddle_y + this.config.paddle_height / 2;
                 let target_y = this.ball.ia_y;
                 let distance = target_y - center_paddle;
                 console.log("****** 1 CLOSE move 2 *********");
-                console.log(`distance = ${Math.abs(distance)}`);
+                console.log(`distance = ${Math.abs(distance)} et delta_paddle = ${this.ia.delta_paddle} et random = ${this.ia.random_move_2}`);
                 this.ia.ia_debug = false;
-                if (Math.abs(distance) < 10)
+                if (Math.abs(distance) < 30)
                     this.ia.random_move_2 = false;
             }
-            this.ia_ajustement(5, this.ia.random_move_2);
-            console.log("FIN DE MOOOOVE");
+            if (this.config.ball_speed > 11)
+                this.ia_ajustement(10, this.ia.random_move_2);
+            else
+                this.ia_ajustement(5, this.ia.random_move_2);
+            //console.log("FIN DE MOOOOVE");
             return;
         }
     }
@@ -573,18 +610,20 @@ class Pong {
         }
         if (this.ball.current_rebond >= 1) {
             if (this.ia.ia_debug == true) {
-                let center_paddle = this.paddle.right_paddle_y + this.config.paddle_height / 2;
+                let center_paddle = this.ia.delta_error + this.ia.delta_paddle + this.paddle.right_paddle_y + this.config.paddle_height / 2;
                 let target_y = this.ball.ia_y;
                 let distance = target_y - center_paddle;
                 console.log("****** 1 FAR move 2 *********");
-                console.log(`distance = ${Math.abs(distance)}`);
+                console.log(`distance = ${Math.abs(distance)} et delta_paddle = ${this.ia.delta_paddle} et random = ${this.ia.random_move_2}`);
                 this.ia.ia_debug = false;
-                if (Math.abs(distance) < 10)
+                if (Math.abs(distance) < 30)
                     this.ia.random_move_2 = false;
             }
-            //this.ia.random_move_2 = true;   
-            this.ia_ajustement(5, false);
-            console.log("FIN DE MOOOOVE");
+            if (this.config.ball_speed > 11)
+                this.ia_ajustement(10, false);
+            else
+                this.ia_ajustement(5, false);
+            //console.log("FIN DE MOOOOVE");
             return;
         }
     }
@@ -609,27 +648,30 @@ class Pong {
         }
         if (this.ball.current_rebond >= 2) {
             if (this.ia.ia_debug == true) {
-                let center_paddle = this.paddle.right_paddle_y + this.config.paddle_height / 2;
+                let center_paddle = this.ia.delta_error + this.ia.delta_paddle + this.paddle.right_paddle_y + this.config.paddle_height / 2;
                 let target_y = this.ball.ia_y;
                 let distance = target_y - center_paddle;
                 console.log("****** 2 REBONDS move 2 *********");
-                console.log(`distance = ${Math.abs(distance)}`);
+                console.log(`distance = ${Math.abs(distance)} et delta_paddle = ${this.ia.delta_paddle} et random = ${this.ia.random_move_2}`);
                 this.ia.ia_debug = false;
-                if (Math.abs(distance) < 10)
+                if (Math.abs(distance) < 30)
                     this.ia.random_move_2 = false;
             }
-            this.ia_ajustement(5, false);
-            console.log("FIN DE MOOOOVE");
+            if (this.config.ball_speed > 11)
+                this.ia_ajustement(10, false);
+            else
+                this.ia_ajustement(5, false);
+            //console.log("FIN DE MOOOOVE");
             return;
         }
     }
     ia_ajustement(marge, random) {
-        let center_paddle = this.paddle.right_paddle_y + this.ia.delta_paddle + this.config.paddle_height / 2;
+        let center_paddle = this.paddle.right_paddle_y + this.ia.delta_error + this.ia.delta_paddle + this.config.paddle_height / 2;
         let target_y = this.ball.ia_y;
         let distance = target_y - center_paddle;
         //console.log(`distance = ${Math.abs(distance)} et marge = ${marge} et continue = ${this.ia.continue_flag}`);
         if (Math.abs(distance) <= marge && random == false) {
-            //console.log("CA RETURN LA");
+            console.log("FIN DE MOVE avec random = false");
             return;
         }
         if (Math.abs(distance) <= marge && random == true && this.ia.move_flag == true) {
@@ -639,11 +681,11 @@ class Pong {
                 this.ia.continue_flag = false;
             }
             this.continue_movement();
-            //console.log("CA RETURN PAR CONTINUE");
+            console.log("FIN DE MOVE continue");
             return;
         }
         if (Math.abs(distance) <= marge) {
-            //console.log("CA RETURN ICI");
+            console.log("FIN DE MOVE");
             return;
         }
         if (distance > 0 && this.ia.continue_flag == true) {
@@ -656,10 +698,10 @@ class Pong {
             this.paddle.right_paddle_y -= this.config.paddle_speed;
             this.ia.move_flag = true;
         }
-        this.paddle.right_paddle_y = Math.max(0, Math.min(this.config.canvas_height - this.config.paddle_height, this.paddle.right_paddle_y));
+        this.paddle.right_paddle_y = Math.max(5, Math.min(this.config.canvas_height - this.config.paddle_height - 5, this.paddle.right_paddle_y));
     }
     ia_ajustement_rebond(marge) {
-        let center_paddle = this.paddle.right_paddle_y + this.ia.delta_paddle + this.config.paddle_height / 2;
+        let center_paddle = this.paddle.right_paddle_y + this.ia.delta_error + this.ia.delta_paddle + this.config.paddle_height / 2;
         let target_y = this.ball.ia_y;
         let distance = target_y - center_paddle;
         if (Math.abs(distance) <= marge) {
@@ -668,6 +710,7 @@ class Pong {
                 this.ia.continue_flag = false;
             }
             this.continue_movement_rebond();
+            console.log("FIN DE MOVE continue");
             return;
         }
         if (distance > 0 && this.ia.continue_flag == true) {
@@ -678,10 +721,10 @@ class Pong {
             console.log("ajust 2");
             this.paddle.right_paddle_y -= this.config.paddle_speed;
         }
-        this.paddle.right_paddle_y = Math.max(0, Math.min(this.config.canvas_height - this.config.paddle_height, this.paddle.right_paddle_y));
+        this.paddle.right_paddle_y = Math.max(5, Math.min(this.config.canvas_height - this.config.paddle_height - 5, this.paddle.right_paddle_y));
     }
     continue_movement() {
-        let center_paddle = this.paddle.right_paddle_y + this.config.paddle_height / 2;
+        let center_paddle = this.paddle.right_paddle_y + this.ia.delta_error + this.ia.delta_paddle + this.config.paddle_height / 2;
         let target_y = this.ball.ia_y;
         if (this.ia.distance_with_marge < 0 && (this.config.canvas_height - target_y) >= (this.config.paddle_height / 2)) {
             if (center_paddle - target_y <= (this.ia.distance_with_marge * -1 * 0.8)) {
@@ -702,14 +745,14 @@ class Pong {
         return;
     }
     continue_movement_rebond() {
-        let center_paddle = this.paddle.right_paddle_y + this.config.paddle_height / 2;
+        let center_paddle = this.paddle.right_paddle_y + this.ia.delta_error + this.ia.delta_paddle + this.config.paddle_height / 2;
         let target_y = this.ball.ia_y;
         if (this.ia.distance_with_marge < 0) {
             if (center_paddle - target_y <= (this.ia.distance_with_marge * -1 * 0.8)) {
                 this.paddle.right_paddle_y += this.config.paddle_speed;
                 console.log("continue 1");
             }
-            this.paddle.right_paddle_y = Math.max(0, Math.min(this.config.canvas_height - this.config.paddle_height, this.paddle.right_paddle_y));
+            this.paddle.right_paddle_y = Math.max(5, Math.min(this.config.canvas_height - this.config.paddle_height - 5, this.paddle.right_paddle_y));
             return;
         }
         else if (this.ia.distance_with_marge >= 0) {
@@ -717,17 +760,53 @@ class Pong {
                 this.paddle.right_paddle_y -= this.config.paddle_speed;
                 console.log("continue 2");
             }
-            this.paddle.right_paddle_y = Math.max(0, Math.min(this.config.canvas_height - this.config.paddle_height, this.paddle.right_paddle_y));
+            this.paddle.right_paddle_y = Math.max(5, Math.min(this.config.canvas_height - this.config.paddle_height - 5, this.paddle.right_paddle_y));
             return;
         }
         return;
     }
     ia_delta_paddle() {
-        let random = random_number(0, 0.45);
+        let random = random_number(0, 0.38);
         let random_sign = random_bool();
         if (random_sign == true)
             random *= -1;
         return (random * 100);
+    }
+    handle_ia_error() {
+        let random = random_number(0, 1);
+        let ajust_percent_lose = 0;
+        if (this.state.right_score - this.state.left_score >= 2)
+            ajust_percent_lose = 0.15;
+        if (this.state.right_score - this.state.left_score >= 3)
+            ajust_percent_lose = 0.20;
+        if (this.state.right_score - this.state.left_score >= 4)
+            ajust_percent_lose = 0.30;
+        if (this.paddle.current_shot < 9) {
+            if (random < 0.15 + ajust_percent_lose) {
+                if (this.ia.delta_paddle > 0)
+                    this.ia.delta_error = 80 - this.ia.delta_paddle;
+                else
+                    this.ia.delta_error = (80 + this.ia.delta_paddle) * -1;
+            }
+        }
+        else if (this.paddle.current_shot < 12) {
+            if (random < 0.25 + ajust_percent_lose) {
+                if (this.ia.delta_paddle > 0)
+                    this.ia.delta_error = 80 - this.ia.delta_paddle;
+                else
+                    this.ia.delta_error = (80 + this.ia.delta_paddle) * -1;
+            }
+        }
+        else {
+            if (random < 0.35 + ajust_percent_lose) {
+                if (this.ia.delta_paddle > 0)
+                    this.ia.delta_error = 80 - this.ia.delta_paddle;
+                else
+                    this.ia.delta_error = (80 + this.ia.delta_paddle) * -1;
+            }
+        }
+        if (this.ia.delta_error != 0)
+            console.log(`! ERROR ! avec cou = ${this.paddle.current_shot} avec delta = ${this.ia.delta_error}`);
     }
 }
 class GamePong {
