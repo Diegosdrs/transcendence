@@ -810,7 +810,7 @@ class GamePong {
         return new Pong(canvas, mode);
     }
 }
-export class Game {
+export class Game_solo {
     constructor() {
         this.current_game = null;
     }
@@ -822,4 +822,4 @@ export class Game {
         this.current_game.start();
     }
 }
-//# sourceMappingURL=game.js.map
+//# sourceMappingURL=game_solo.js.map

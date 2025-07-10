@@ -1151,7 +1151,7 @@ class GamePong
 }
 
 
-export class Game
+export class Game_solo
 {
     private current_game: Pong | null = null;
 

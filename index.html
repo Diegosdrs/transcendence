@@ -44,6 +44,14 @@
     #game {
       display: none;
     }
+
+    #menu_local {
+      display: none;
+    }
+
+    #menu_ligne {
+      display: none;
+    }
   
     #scoreboard {
       font-size: 20px;
@@ -72,13 +80,28 @@
   <!-- Menu principal -->
   <div id="menu">
     <h2>Choisir le mode de jeu</h2>
-    <button id="soloBtn" class="menu-button">🎮 Solo (vs IA)</button>
-    <button id="versusBtn" class="menu-button">👥 Versus (2 joueurs)</button>
+    <button id="localBtn" class="menu-button">En local</button>
+    <button id="ligneBtn" class="menu-button">En ligne</button>
+  </div>
+
+  <!-- Menu local -->
+  <div id="menu_local">
+    <h2>Choisir le mode de jeu en local</h2>
+    <button id="soloBtn" class="menu-button">Solo (vs IA)</button>
+    <button id="versusBtn" class="menu-button">Versus (2 joueurs)</button>
+  </div>
+
+  <!-- Menu en ligne -->
+  <div id="menu_ligne">
+    <h2>Choisir le mode de jeu en local</h2>
+    <button id="solo_ligneBtn" class="menu-button">1v1</button>
+    <button id="multiBtn" class="menu-button">Multiplayer</button>
+    <button id="tournoiBtn" class="menu-button">Tournoi</button>
   </div>
 
   <!-- Zone de jeu -->
   <div id="game">
-    <button id="restartBtn" style="display:none; margin-top: 20px;" class="menu-button">🔄 Rejouer</button>
+    <button id="restartBtn" style="margin-top: 20px;" class="menu-button">🔄 Rejouer</button>
     <div id="scoreboard">
       <p><span id="scoreP1">Joueur 1 : 0</span> | <span id="scoreP2">Joueur 2 : 0</span></p>
     </div>
