@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pong</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #222;
+      color: white;
+      text-align: center;
+    }
+    
+    h1 {
+      color: #4CAF50;
+      margin-bottom: 30px;
+    }
+    
+    #menu {
+      margin: 50px auto;
+      max-width: 300px;
+    }
+    
+    .menu-button {
+      background: linear-gradient(45deg, #4CAF50, #45a049);
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      margin: 10px;
+      font-size: 18px;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: transform 0.2s;
+      width: 200px;
+    }
+    
+    .menu-button:hover {
+      transform: scale(1.05);
+      background: linear-gradient(45deg, #45a049, #4CAF50);
+    }
+    
+    #game {
+      display: none;
+    }
+
+    #menu_local {
+      display: none;
+    }
+
+    #menu_ligne {
+      display: none;
+    }
+  
+    #scoreboard {
+      font-size: 20px;
+      margin-bottom: 10px;
+      color: #4CAF50;
+    }
+    
+    canvas {
+      border: 2px solid #4CAF50;
+      display: block;
+      margin: 20px auto;
+      background: #f0f0f0;
+      border-radius: 8px;
+    }
+    
+    .controls {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>🏓 Pong Game</h1>
+
+  <!-- Menu principal -->
+  <div id="menu">
+    <h2>Choisir le mode de jeu</h2>
+    <button id="localBtn" class="menu-button">En local</button>
+    <button id="ligneBtn" class="menu-button">En ligne</button>
+  </div>
+
+  <!-- Menu local -->
+  <div id="menu_local">
+    <h2>Choisir le mode de jeu en local</h2>
+    <button id="soloBtn" class="menu-button">Solo (vs IA)</button>
+    <button id="versusBtn" class="menu-button">Versus (2 joueurs)</button>
+  </div>
+
+  <!-- Menu en ligne -->
+  <div id="menu_ligne">
+    <h2>Choisir le mode de jeu en local</h2>
+    <button id="solo_ligneBtn" class="menu-button">1v1</button>
+    <button id="multiBtn" class="menu-button">Multiplayer</button>
+    <button id="tournoiBtn" class="menu-button">Tournoi</button>
+  </div>
+
+  <!-- Zone de jeu -->
+  <div id="game">
+    <button id="restartBtn" style="display: none; margin-top: 20px;" class="menu-button">🔄 Rejouer</button>
+    <div id="scoreboard">
+      <p><span id="scoreP1">Joueur 1 : 0</span> | <span id="scoreP2">Joueur 2 : 0</span></p>
+    </div>
+    <div id="endMessage" style="display: none; margin-top: 30px; font-size: 24px; color: #FFD700;">
+    <!-- Le message de fin sera injecté ici -->
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="countdowndisplay" style="font-size: 32px; color: #FFD700; margin-top: 20px;"></div>
+    <div class="controls">
+      <p><strong>Contrôles:</strong></p>
+      <p>Joueur 1 (Bleu): W/S | Joueur 2 (Rouge): ↑/↓ | Pause: SPACE</p>
+    </div>
+  </div>
+
+  <!-- Chargement du script principal -->
+  <script type="module" src="./dist/main.js"></script>
+</body>
+</html>

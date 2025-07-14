@@ -1,12 +1,7 @@
 
 // -------------------------- INTERFACES ------------------------------------
 
-
-
-// FINIR restart (stop()) + balle qui passe a travers paddle orange
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-import { selected_game_mode } from "./menu.js";
+//import { selected_game_mode } from "./menu.js";
 
 interface game_config
 {
@@ -30,6 +25,7 @@ interface game_state
     is_paused: boolean;
     game_running: boolean;
     count_down_active: boolean;
+    restart_active: boolean;
 }
 
 interface ball_interface
@@ -112,16 +108,6 @@ function get_time(start_time: DOMHighResTimeStamp): number
   return performance.now() - start_time;
 }
 
-function display_time(ctx: CanvasRenderingContext2D, paddle: game_config): void
-{
-    if (!ctx)
-        return;
-        
-    ctx.fillStyle = "black";
-    ctx.font = "16px Arial";
-    ctx.fillText("yoooo", paddle.paddle_width / 2, paddle.paddle_height /2);
-}
-
 function random_bool(): boolean
 {
     return Math.random() < 0.5;
@@ -143,6 +129,13 @@ class Pong
     private keys_pressed: Record<string, boolean> = {};
     private count_down: HTMLDivElement;
     private animation_id: number;
+    private countdown_interval: number | null = null;
+    private restart_timeout: number | null = null;
+    private goal_timeout: number | null = null;
+    private start_timeout: number | null = null;
+    private restart_btn: HTMLButtonElement;
+    private end_message: HTMLElement | null = null;
+
 
     constructor(canvas : HTMLCanvasElement)
     {
@@ -151,7 +144,11 @@ class Pong
         this.start_time = performance.now();
         this.count_down = document.getElementById("countdowndisplay") as HTMLDivElement;
         this.animation_id = 0;
-        
+        this.restart_btn = document.getElementById("restartBtn") as HTMLButtonElement;
+        this.restart_btn.addEventListener('click', () => this.restart());
+        this.restart_btn.style.display = 'none';
+        this.end_message = document.getElementById('endMessage');
+
 
         this.config =
         {
@@ -162,7 +159,7 @@ class Pong
             ball_real_speed: 4,
             ball_speed: 3.5,
             ball_max_speed: 4.5,
-            paddle_speed: 8.5,
+            paddle_speed: 5.25,
             score_to_win: 5,
             increase_vitesse: 250,
             time_before_new_ball: 3000
@@ -175,6 +172,7 @@ class Pong
             is_paused: false,
             game_running: true,
             count_down_active: false,
+            restart_active: false
         }
 
         this.ball =
@@ -228,7 +226,7 @@ class Pong
     start(): void
     {
         this.draw();
-        console.log("ca demarre");
+        //console.log("ca demarre");
         let countdown = 3;
         this.count_down.innerText = `Debut de partie dans`;
         setTimeout(() => 
@@ -275,7 +273,6 @@ class Pong
 
     end_game(): void
     {
-        const end_message_div = document.getElementById('endMessage');
         let message = '';
         setTimeout(() =>
         {
@@ -284,77 +281,135 @@ class Pong
             else
                 message = '🏆 Equipe 2 gagne la partie !';
 
-            if (end_message_div)
+            if (this.end_message)
             {
-                end_message_div.textContent = message;
-                end_message_div.style.display = 'block';
+                this.end_message.textContent = message;
+                this.end_message.style.display = 'block';
+                this.restart_btn.style.display = 'block';
             }
         }, 1000);
         this.state.game_running = false;
     }
 
-    stop(): void
+    restart(): void
     {
-        console.log("RESTART");
+        console.log("🔄 RESTART demandé");
+        
+        this.clear_all_timers();
+        this.restart_btn.style.display = 'none';
 
+        this.state.restart_active = true;
+        if (this.end_message)
+            this.end_message.style.display = 'none';
         this.state.is_paused = true;
+        this.state.count_down_active = false;
+        this.state.game_running = true; // Important : garder le jeu actif
+        
+        this.ball.ball_dir_x = 0;
+        this.ball.ball_dir_y = 0;
+        
+        this.update_score(0);
+        this.config.ball_speed = 3.5;
+        this.config.paddle_speed = 8.5;
+        
+        this.count_down.innerText = "Nouvelle partie...";
+        
+        this.restart_timeout = setTimeout(() =>
+        {
+            console.log("🚀 Nouvelle partie");
+            
+            // Repositionner tous les éléments
+            this.ball.ball_x = this.config.canvas_width / 2;
+            this.ball.ball_y = this.config.canvas_height / 2;
+            this.paddle.paddles.p1_y = (this.config.canvas_height - this.config.paddle_height) / 4,
+            this.paddle.paddles.p2_y = 3 * (this.config.canvas_height - this.config.paddle_height) / 4,
+            this.paddle.paddles.p3_y = (this.config.canvas_height - this.config.paddle_height) / 4,
+            this.paddle.paddles.p4_y = 3 * (this.config.canvas_height - this.config.paddle_height) / 4,
+            this.draw();
+            this.start_count_down_for_restart();
+            this.state.restart_active = false;
+        }, 1500);
+    }
 
-        setTimeout(() =>
-        {        this.init_ball_direction();
-                this.start();
+    // Fonction améliorée pour nettoyer TOUS les timers
+    clear_all_timers(): void
+    {        
+        if (this.countdown_interval)
+        {
+            clearInterval(this.countdown_interval);
+            this.countdown_interval = null;
+            //console.log("✅ Countdown interval nettoyé");
+        }
+        
+        if (this.restart_timeout)
+        {
+            clearTimeout(this.restart_timeout);
+            this.restart_timeout = null;
+            //console.log("✅ Restart timeout nettoyé");
+        }
+        
+        if (this.goal_timeout)
+        {
+            clearTimeout(this.goal_timeout);
+            this.goal_timeout = null;
+            //console.log("✅ Goal timeout nettoyé");
+        }
+        
+        if (this.start_timeout)
+        {
+            clearTimeout(this.start_timeout);
+            this.start_timeout = null;
+            //console.log("✅ Start timeout nettoyé");
+        }
+        
+        // Annule aussi l'animation frame si nécessaire
+        if (this.animation_id)
+        {
+            cancelAnimationFrame(this.animation_id);
+            this.animation_id = 0;
+            //console.log("✅ Animation frame annulée");
+        }
+    }
 
-                this.state.game_running = false;
-                //clearInterval(count_down_interval);
+    start_count_down_for_restart(): void
+    {
+        let countdown = 3;
+        this.count_down.innerText = `Reprise dans : ${countdown}`;
+        this.state.count_down_active = true;
+        
+        this.countdown_interval = setInterval(() => {
+            countdown--;
+            
+            // Vérifier si le restart est toujours valide
+            if (this.state.restart_active)
+            {
+                //console.log("⚠️ Restart annulé pendant le countdown");
+                return;
+            }
+            
+            if (countdown > 0)
+            {
+                this.count_down.innerText = `Reprise dans : ${countdown}`;
+                console.log(`⏰ Countdown : ${countdown}`);
+            }
+            else
+            {
+                //console.log("🎮 Fin du countdown, reprise du jeu");
+                
+                clearInterval(this.countdown_interval!);
+                this.countdown_interval = null;
                 this.count_down.innerText = "";
                 this.state.count_down_active = false;
+                
                 this.init_ball_direction();
                 this.start_time = performance.now();
                 this.state.is_paused = false;
-            this.restart();
-        }, 1500);
-       
-    }
-
-    restart(): void
-    {
-        console.log("🔁 Redémarrage de la partie...");
-
-        // Réinitialise les scores si tu veux une VRAIE nouvelle partie
-        this.state.left_score = 0;
-        this.state.right_score = 0;
-
-        // Réinitialise les vitesses
-        this.config.ball_speed = 3.5;
-        this.config.paddle_speed = 8.5;
-        this.start_time = performance.now();
-
-        // Réinitialise la balle
-        this.ball.ball_x = this.config.canvas_width / 2;
-        this.ball.ball_y = this.config.canvas_height / 2;
-        this.ball.ball_dir_x = 0;
-        this.ball.ball_dir_y = 0;
-        this.ball.angle = 0;
-        this.ball.current_rebond = 0;
-
-        // Réinitialise les positions des paddles
-        this.paddle.paddles.p1_y = (this.config.canvas_height - this.config.paddle_height) / 4;
-        this.paddle.paddles.p2_y = 3 * (this.config.canvas_height - this.config.paddle_height) / 4;
-        this.paddle.paddles.p3_y = (this.config.canvas_height - this.config.paddle_height) / 4;
-        this.paddle.paddles.p4_y = 3 * (this.config.canvas_height - this.config.paddle_height) / 4;
-
-        // Masquer le message de fin
-        const endMessage = document.getElementById('endMessage');
-        if (endMessage)
-            endMessage.style.display = 'none';
-
-        // Réactiver les états du jeu
-        this.state.is_paused = false;
-        this.state.game_running = true;
-        this.state.count_down_active = false;
-
-        // Relancer un compte à rebours + boucle de jeu
-        // this.init_ball_direction();
-        // this.start();
+                
+                if (this.state.game_running) {
+                    this.game_loop();
+                }
+            }
+        }, 1000);
     }
 
 
@@ -376,15 +431,15 @@ class Pong
             this.paddle.paddles.p2_y  += this.config.paddle_speed;
 
         // p3 move
-        if (this.keys_pressed["ArrowUp"] && this.paddle.paddles.p3_y > 0)
+        if (this.keys_pressed["9"] && this.paddle.paddles.p3_y > 0)
             this.paddle.paddles.p3_y -= this.config.paddle_speed;
-        if (this.keys_pressed["ArrowDown"] && this.paddle.paddles.p3_y <= (this.config.canvas_height / 2) - this.config.paddle_height)
+        if (this.keys_pressed["6"] && this.paddle.paddles.p3_y <= (this.config.canvas_height / 2) - this.config.paddle_height)
             this.paddle.paddles.p3_y += this.config.paddle_speed;
 
         // p4 move
-        if (this.keys_pressed["9"] && this.paddle.paddles.p4_y > this.config.canvas_height / 2)
+        if (this.keys_pressed["ArrowUp"] && this.paddle.paddles.p4_y > this.config.canvas_height / 2)
             this.paddle.paddles.p4_y -= this.config.paddle_speed;
-        if (this.keys_pressed["6"] && this.paddle.paddles.p4_y < this.config.canvas_height - this.config.paddle_height)
+        if (this.keys_pressed["ArrowDown"] && this.paddle.paddles.p4_y < this.config.canvas_height - this.config.paddle_height)
             this.paddle.paddles.p4_y += this.config.paddle_speed;
     }
 
@@ -418,7 +473,7 @@ class Pong
         if (this.ball.ball_y <= 5 || this.ball.ball_y >= this.config.canvas_height - 5) 
         {
 
-            console.log(`AVANT rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
+            //console.log(`AVANT rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
 
             if (this.ball.ball_x <= 50 )
             {
@@ -437,33 +492,11 @@ class Pong
                 //console.log("ca passe ici woula")
             }
 
-            console.log(`APRES rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
+            //console.log(`APRES rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
             this.ball.ball_dir_y *= -1;
             this.ball.current_rebond++;
             this.normalize_ball_speed();
         }
-
-        // // raquettes de gauche
-        // if (
-        //     this.ball.ball_x <= 40 &&
-        //     this.ball.ball_x >= 25 &&
-        //     ((this.ball.ball_y >= this.paddle.paddles.p1_y - this.paddle.marge &&
-        //     this.ball.ball_y <= this.paddle.paddles.p1_y + this.config.paddle_height + this.paddle.marge &&
-        //     this.ball.ball_dir_x < 0) ||
-        //     (this.ball.ball_y >= this.paddle.paddles.p2_y - this.paddle.marge &&
-        //     this.ball.ball_y <= this.paddle.paddles.p2_y + this.config.paddle_height + this.paddle.marge &&
-        //     this.ball.ball_dir_x < 0)))
-        // {
-        //     if (this.ball.ball_y <= this.config.canvas_height / 2)
-        //         console.log(`🏓 Rebond raquette P1 à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
-        //     else
-        //         console.log(`🏓 Rebond raquette P2 à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
-        //     if (this.config.ball_speed < this.config.ball_real_speed)
-        //         this.config.ball_speed = this.config.ball_real_speed;
-        //     this.update_ball_dir(0);
-        //     this.normalize_ball_speed();
-        // }
-
 
         // raquettes de gauche
         if (this.ball.ball_x <= 40 && this.ball.ball_x >= 25)
@@ -486,15 +519,7 @@ class Pong
                 this.update_ball_dir(2);
                 this.normalize_ball_speed();
             }
-            // else
-            // {
-            //     this.state.is_paused = true;
-            //     console.log(`🎯 BUT ! ball_x = ${this.ball.ball_x} et ballspeed = ${this.config.ball_speed}`);
-            //     this.handle_goal();
-            //     return;
-            // }
         }
-
 
         // raquettes droite
         if (this.ball.ball_x >= this.config.canvas_width - 40 && this.ball.ball_x <= this.config.canvas_width - 25)
@@ -511,17 +536,10 @@ class Pong
             this.ball.ball_y <= this.paddle.paddles.p4_y + this.config.paddle_height + this.paddle.marge &&
             this.ball.ball_dir_x > 0)
             {
-                console.log(`🏓 Rebond raquette P4 à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);            if (this.config.ball_speed < this.config.ball_real_speed)
+                console.log(`🏓 Rebond raquette P4 à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
                 this.update_ball_dir(4);
                 this.normalize_ball_speed();
             }
-            // else
-            // {
-            //     this.state.is_paused = true;
-            //     console.log(`🎯 BUT ! ball_x = ${this.ball.ball_x} et ballspeed = ${this.config.ball_speed}`);
-            //     this.handle_goal();
-            //     return;
-            // }
         }
     }
 
@@ -529,14 +547,14 @@ class Pong
     {
         this.ball.ball_dir_x = 0;
         this.ball.ball_dir_y = 0;
-        this.update_score();
+        this.update_score(1);
         if (this.state.left_score == this.config.score_to_win || this.state.right_score == this.config.score_to_win)
         {
             this.end_game();
             return ;
         }
         this.config.ball_speed = 4.5;
-        this.config.paddle_speed = 8.5;
+        this.config.paddle_speed = 5.25;
 
         setTimeout(() =>
         {
@@ -579,7 +597,7 @@ class Pong
         if (paddle > 2) this.ball.ball_dir_x = -this.ball.ball_dir_x;
     }
 
-    update_score(): void
+    update_score(flag: number): void
     {
         const score_P1 = document.getElementById('scoreP1');
         const score_P2 = document.getElementById('scoreP2');
@@ -589,36 +607,59 @@ class Pong
         else
             this.state.left_score++;
 
+        if (flag == 0)
+        {
+            this.state.right_score = 0;
+            this.state.left_score = 0;
+        }
+
         if (score_P1)
             score_P1.textContent = `Equipe 1 : ${this.state.left_score}`;
         if (score_P2)
             score_P2.textContent = `Equipe 2 : ${this.state.right_score}`;
     }
 
-     start_count_down(): void
+    // Fonction start_count_down corrigée (après un but)
+    start_count_down(): void
     {
+        //console.log("⏰ Démarrage du countdown après but");
+        
         let countdown = 3;
-        setTimeout(() => 
+        
+        // Vérifier qu'on n'est pas en train de redémarrer
+        if (this.state.restart_active)
         {
-            this.state.count_down_active = true;
-
-            if (!this.count_down)
+            //console.log("⚠️ Countdown annulé car restart actif");
+            return;
+        }
+        
+        this.goal_timeout = setTimeout(() =>
+        {
+            // Double vérification
+            if (this.state.restart_active)
             {
-                console.error("Element countdown non trouve");
+                //console.log("⚠️ Timeout de but annulé car restart actif");
                 return;
             }
-
+            
+            this.state.count_down_active = true;
             this.count_down.innerText = `Reprise dans : ${countdown}`;
-
-            let count_down_interval = setInterval(() =>
-            {
+            
+            // Utiliser this.countdown_interval
+            this.countdown_interval = setInterval(() => {
                 countdown--;
-
-                if (countdown > 0)
-                    this.count_down.innerText = `Reprise dans : ${countdown}`;
-                else
+                
+                if (this.state.restart_active)
                 {
-                    clearInterval(count_down_interval);
+                    //console.log("⚠️ Countdown de but interrompu par restart");
+                    return;
+                }
+                
+                if (countdown > 0) {
+                    this.count_down.innerText = `Reprise dans : ${countdown}`;
+                } else {
+                    clearInterval(this.countdown_interval!);
+                    this.countdown_interval = null;
                     this.count_down.innerText = "";
                     this.state.count_down_active = false;
                     this.init_ball_direction();
@@ -628,6 +669,14 @@ class Pong
             }, 1000);
         }, 1000);
     }
+
+    init_ball_direction(): void
+    {
+        this.ball.angle = get_random_playable_angle();
+        this.ball.ball_dir_x = this.config.ball_speed * Math.cos(this.ball.angle);
+        this.ball.ball_dir_y = this.config.ball_speed * Math.sin(this.ball.angle);
+    }
+
 
     normalize_ball_speed(): void
     {
@@ -640,60 +689,85 @@ class Pong
         }
     }
 
-    draw(): void
-    {
-        if (!this.ctx)
-            return;
+    draw(): void {
+        if (!this.ctx) return;
 
-        // Effacer le canvas
-        this.ctx.clearRect(0, 0, this.config.canvas_width, this.config.canvas_height);
+        // === 1. FOND NOIR AVEC DÉGRADÉ ===
+        let bgGradient = this.ctx.createLinearGradient(0, 0, 0, this.config.canvas_height);
+        bgGradient.addColorStop(0, "#0f0f0f");
+        bgGradient.addColorStop(1, "#1a1a1a");
+        this.ctx.fillStyle = bgGradient;
+        this.ctx.fillRect(0, 0, this.config.canvas_width, this.config.canvas_height);
 
-        // Dessiner les raquettes
-        this.ctx.fillStyle = "blue";
+        // === 4. LIGNES DU MILIEU EN POINTILLÉS (optionnel mais rétro) ===
+        this.ctx.shadowBlur = 0;
+        this.ctx.setLineDash([10, 15]);
+        this.ctx.strokeStyle = "#444";
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.config.canvas_width / 2, 0);
+        this.ctx.lineTo(this.config.canvas_width / 2, this.config.canvas_height);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+
+        // === 2. RAQUETTES STYLE NÉON ===
+        // Effet glow : couleur + ombre
+        // raquettes de gauche
+        this.ctx.shadowColor = "#00ffff";
+        this.ctx.shadowBlur = 20;
+
+        let paddleGradient_p1 = this.ctx.createLinearGradient(0, this.paddle.paddles.p1_y, 0, this.paddle.paddles.p1_y + this.config.paddle_height);
+        paddleGradient_p1.addColorStop(0, "#00ffff");
+        paddleGradient_p1.addColorStop(1, "#005f5f");
+        this.ctx.fillStyle = paddleGradient_p1;
         this.ctx.fillRect(30, this.paddle.paddles.p1_y, this.config.paddle_width, this.config.paddle_height);
-        this.ctx.fillStyle = "green";
+
+        let paddleGradient_p2 = this.ctx.createLinearGradient(0, this.paddle.paddles.p2_y, 0, this.paddle.paddles.p2_y + this.config.paddle_height);
+        paddleGradient_p2.addColorStop(0, "#00ffff");
+        paddleGradient_p2.addColorStop(1, "#005f5f");
+        this.ctx.fillStyle = paddleGradient_p2;
         this.ctx.fillRect(30, this.paddle.paddles.p2_y, this.config.paddle_width, this.config.paddle_height);
 
-        this.ctx.fillStyle = "red";
+
+        // raquette de droites
+        this.ctx.shadowColor = "#ff00ff";
+        this.ctx.shadowBlur = 20;
+
+        let paddleGradient_p3 = this.ctx.createLinearGradient(0, this.paddle.paddles.p3_y, 0, this.paddle.paddles.p3_y + this.config.paddle_height);
+        paddleGradient_p3.addColorStop(0, "#ff00ff");
+        paddleGradient_p3.addColorStop(1, "#5f005f");
+        this.ctx.fillStyle = paddleGradient_p3;
         this.ctx.fillRect(this.config.canvas_width - 30 - this.config.paddle_width, this.paddle.paddles.p3_y, this.config.paddle_width, this.config.paddle_height);
-        this.ctx.fillStyle = "orange";
-        this.ctx.fillRect(this.config.canvas_width - 30 - this.config.paddle_width, this.paddle.paddles.p4_y, this.config.paddle_width, this.config.paddle_height);
         
-        // Dessiner la balle
-        this.ctx.fillStyle = "black";
+        this.ctx.shadowColor = "#ff00ff";
+        this.ctx.shadowBlur = 20;
+        
+        let paddleGradient_p4 = this.ctx.createLinearGradient(0, this.paddle.paddles.p4_y, 0, this.paddle.paddles.p4_y+ this.config.paddle_height);
+        paddleGradient_p4.addColorStop(0, "#ff00ff");
+        paddleGradient_p4.addColorStop(1, "#5f005f");
+        this.ctx.fillStyle = paddleGradient_p4;
+        this.ctx.fillRect(this.config.canvas_width - 30 - this.config.paddle_width, this.paddle.paddles.p4_y, this.config.paddle_width, this.config.paddle_height);
+
+        // === 3. BALLE PULSANTE ET CLIGNOTANTE ===
+        const pulse = 10 + Math.sin(Date.now() / 100) * 2;
+        const blink = Math.floor(Date.now() / 200) % 2 === 0;
+        this.ctx.shadowColor = blink ? "#ffff00" : "#ff00ff";
+        this.ctx.shadowBlur = 25;
+        this.ctx.fillStyle = blink ? "#ffff00" : "#ff00ff";
         this.ctx.beginPath();
-        this.ctx.arc(this.ball.ball_x, this.ball.ball_y, 10, 0, Math.PI * 2);
+        this.ctx.arc(this.ball.ball_x, this.ball.ball_y, pulse, 0, Math.PI * 2);
         this.ctx.fill();
 
-        this.ctx.fillStyle = "black";
-        this.ctx.font = "16px Arial";
+        // === 5. HUD (score, vitesse) AVEC POLICE PIXEL ===
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = "#00ffcc";
+        this.ctx.font = "bold 18px 'Courier New', monospace";
         const currentSpeed = calculate_ball_speed(this.ball);
-        this.ctx.fillText(`Vitesse: ${currentSpeed.toFixed(3)}`, 10, 30);
-        
-        // Indicateur de vitesse correcte
-        if (Math.abs(currentSpeed - this.config.ball_speed) < 0.001) {
-            this.ctx.fillStyle = "green";
-            this.ctx.fillText("✅ Vitesse OK", 10, 50);
-        }
-        else {
-            this.ctx.fillStyle = "red";
-            this.ctx.fillText("❌ Vitesse incorrecte", 10, 50);
-        }
+        this.ctx.fillText(`🎯 Vitesse: ${currentSpeed.toFixed(2)}`, 20, 30);
 
-        this.ctx.fillStyle = "black";
-        this.ctx.font = "16px Arial";
-        this.ctx.fillText(`⏱️ Temps : ${get_time(this.start_time).toFixed(0)} ms`, 10, 70);
-        
-        this.ctx.fillStyle = "black",
-        this.ctx.font = "16px Arial";
-        this.ctx.fillText(`Vitesse: ${currentSpeed.toFixed(3)}`, 10, 30);
-        }
-
-    init_ball_direction(): void
-    {
-        this.ball.angle = get_random_playable_angle();
-        this.ball.ball_dir_x = this.config.ball_speed * Math.cos(this.ball.angle);
-        this.ball.ball_dir_y = this.config.ball_speed * Math.sin(this.ball.angle);
+        this.ctx.fillStyle = "#ff66cc";
+        this.ctx.font = "14px 'Courier New', monospace";
+        this.ctx.fillText(`⏱️ Temps: ${get_time(this.start_time).toFixed(0)} ms`, 20, 55);
     }
 }
 
@@ -710,14 +784,14 @@ class GamePong
 export class Game_ligne
 {
     private current_game: Pong | null = null;
-    private restart_btn: HTMLButtonElement;
+    //private restart_btn: HTMLButtonElement;
     private canvas: HTMLCanvasElement; 
     
     constructor()
     {
         this.canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
-        this.restart_btn = document.getElementById("restartBtn") as HTMLButtonElement;
-        this.restart_btn.addEventListener('click', () => this.restart());
+        //this.restart_btn = document.getElementById("restartBtn") as HTMLButtonElement;
+        //this.restart_btn.addEventListener('click', () => this.restart());
         this.current_game = GamePong.create_game(this.canvas);
     }
 
@@ -731,15 +805,7 @@ export class Game_ligne
     {
         if (this.current_game)
         {
-            this.current_game.stop();
-            //this.current_game = null;
-            //this.current_game = GamePong.create_game(this.canvas);
-            //this.start_game_loop();
-
-            // setTimeout (() =>
-            // {
-            //     this.start_game_loop();
-            // }, 3000);
+            this.current_game.restart();
         }
     }
 }

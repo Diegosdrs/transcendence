@@ -2,121 +2,243 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>Pong</title>
+  <title>Pong - Édition Futuriste</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Configuration personnalisée de Tailwind pour des couleurs néon
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'neon-green': '#00ff41',
+            'neon-blue': '#00d4ff',
+            'neon-purple': '#b300ff',
+            'neon-pink': '#ff0080',
+            'dark-bg': '#0a0a0a',
+            'card-bg': '#1a1a1a',
+          },
+          animation: {
+            'pulse-glow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'bounce-slow': 'bounce 3s infinite',
+            'glow': 'glow 2s ease-in-out infinite alternate',
+          },
+          keyframes: {
+            glow: {
+              '0%': { boxShadow: '0 0 5px #00ff41, 0 0 10px #00ff41, 0 0 15px #00ff41' },
+              '100%': { boxShadow: '0 0 20px #00ff41, 0 0 30px #00ff41, 0 0 40px #00ff41' }
+            }
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #222;
-      color: white;
-      text-align: center;
+    /* Styles personnalisés pour les effets néon */
+    .neon-text {
+      text-shadow: 
+        0 0 5px currentColor,
+        0 0 10px currentColor,
+        0 0 15px currentColor,
+        0 0 20px currentColor;
     }
     
-    h1 {
-      color: #4CAF50;
-      margin-bottom: 30px;
+    .neon-border {
+      box-shadow: 
+        0 0 10px currentColor,
+        inset 0 0 10px currentColor;
     }
     
-    #menu {
-      margin: 50px auto;
-      max-width: 300px;
+    /* Animation de particules en arrière-plan */
+    .particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: -1;
     }
     
-    .menu-button {
-      background: linear-gradient(45deg, #4CAF50, #45a049);
-      color: white;
-      border: none;
-      padding: 15px 30px;
-      margin: 10px;
-      font-size: 18px;
-      cursor: pointer;
-      border-radius: 8px;
-      transition: transform 0.2s;
-      width: 200px;
+    .particle {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: #00ff41;
+      border-radius: 50%;
+      animation: float 6s ease-in-out infinite;
     }
     
-    .menu-button:hover {
-      transform: scale(1.05);
-      background: linear-gradient(45deg, #45a049, #4CAF50);
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(180deg); }
     }
     
-    #game {
-      display: none;
-    }
-
-    #menu_local {
-      display: none;
-    }
-
-    #menu_ligne {
-      display: none;
-    }
-  
-    #scoreboard {
-      font-size: 20px;
-      margin-bottom: 10px;
-      color: #4CAF50;
-    }
-    
-    canvas {
-      border: 2px solid #4CAF50;
-      display: block;
-      margin: 20px auto;
-      background: #f0f0f0;
-      border-radius: 8px;
+    /* Effet de scan line rétro */
+    .scan-lines::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        transparent 0%,
+        rgba(0, 255, 65, 0.03) 50%,
+        transparent 100%
+      );
+      background-size: 100% 4px;
+      animation: scan 0.1s linear infinite;
+      pointer-events: none;
     }
     
-    .controls {
-      margin-top: 20px;
-      font-size: 14px;
-      color: #aaa;
+    @keyframes scan {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 4px; }
     }
   </style>
 </head>
-<body>
-  <h1>🏓 Pong Game</h1>
-
-  <!-- Menu principal -->
-  <div id="menu">
-    <h2>Choisir le mode de jeu</h2>
-    <button id="localBtn" class="menu-button">En local</button>
-    <button id="ligneBtn" class="menu-button">En ligne</button>
+<body class="bg-dark-bg text-white font-mono overflow-hidden">
+  <!-- Particules d'arrière-plan -->
+  <div class="particles">
+    <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
+    <div class="particle" style="left: 20%; animation-delay: 1s;"></div>
+    <div class="particle" style="left: 30%; animation-delay: 2s;"></div>
+    <div class="particle" style="left: 40%; animation-delay: 3s;"></div>
+    <div class="particle" style="left: 50%; animation-delay: 4s;"></div>
+    <div class="particle" style="left: 60%; animation-delay: 5s;"></div>
+    <div class="particle" style="left: 70%; animation-delay: 2s;"></div>
+    <div class="particle" style="left: 80%; animation-delay: 1s;"></div>
+    <div class="particle" style="left: 90%; animation-delay: 3s;"></div>
   </div>
 
-  <!-- Menu local -->
-  <div id="menu_local">
-    <h2>Choisir le mode de jeu en local</h2>
-    <button id="soloBtn" class="menu-button">Solo (vs IA)</button>
-    <button id="versusBtn" class="menu-button">Versus (2 joueurs)</button>
-  </div>
+  <!-- Conteneur principal avec effet scan -->
+  <div class="min-h-screen flex flex-col items-center justify-center p-4 scan-lines relative">
+    
+    <!-- Titre principal avec effet néon -->
+    <h1 class="text-6xl font-bold text-neon-green neon-text mb-8 animate-pulse-glow">
+      🏓 PONG
+    </h1>
+    <!-- <p class="text-neon-blue text-xl mb-12 opacity-80">Édition Futuriste</p> -->
 
-  <!-- Menu en ligne -->
-  <div id="menu_ligne">
-    <h2>Choisir le mode de jeu en local</h2>
-    <button id="solo_ligneBtn" class="menu-button">1v1</button>
-    <button id="multiBtn" class="menu-button">Multiplayer</button>
-    <button id="tournoiBtn" class="menu-button">Tournoi</button>
-  </div>
-
-  <!-- Zone de jeu -->
-  <div id="game">
-    <button id="restartBtn" style="margin-top: 20px;" class="menu-button">🔄 Rejouer</button>
-    <div id="scoreboard">
-      <p><span id="scoreP1">Joueur 1 : 0</span> | <span id="scoreP2">Joueur 2 : 0</span></p>
+    <!-- Menu principal -->
+    <div id="menu" class="bg-card-bg/50 backdrop-blur-sm rounded-2xl p-8 border border-neon-green/30 neon-border">
+      <h2 class="text-3xl font-bold text-neon-blue mb-8 text-center">Mode de Jeu</h2>
+      <div class="flex flex-col gap-4">
+        <button id="localBtn" class="group relative bg-gradient-to-r from-neon-green/20 to-neon-blue/20 hover:from-neon-green/40 hover:to-neon-blue/40 text-white font-bold py-4 px-8 rounded-xl border border-neon-green/50 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl">
+          <span class="relative z-10">🎮 Jouer en local</span>
+          <div class="absolute inset-0 bg-gradient-to-r from-neon-green/10 to-neon-blue/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </button>
+        <button id="ligneBtn" class="group relative bg-gradient-to-r from-neon-purple/20 to-neon-pink/20 hover:from-neon-purple/40 hover:to-neon-pink/40 text-white font-bold py-4 px-8 rounded-xl border border-neon-purple/50 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl">
+          <span class="relative z-10">🌐 Jouer en ligne</span>
+          <div class="absolute inset-0 bg-gradient-to-r from-neon-purple/10 to-neon-pink/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </button>
+      </div>
     </div>
-    <div id="endMessage" style="display: none; margin-top: 30px; font-size: 24px; color: #FFD700;">
-    <!-- Le message de fin sera injecté ici -->
+
+    <!-- Menu local -->
+    <div id="menu_local" class="hidden bg-card-bg/50 backdrop-blur-sm rounded-2xl p-8 border border-neon-blue/30">
+      <h2 class="text-3xl font-bold text-neon-green mb-8 text-center">En Local</h2>
+      <div class="flex flex-col gap-4">
+        <button id="soloBtn" class="bg-gradient-to-r from-orange-500/20 to-red-500/20 hover:from-orange-500/40 hover:to-red-500/40 text-white font-bold py-4 px-8 rounded-xl border border-orange-500/50 transition-all duration-300 transform hover:scale-105">
+          🤖 Solo (vs IA)
+        </button>
+        <button id="versusBtn" class="bg-gradient-to-r from-green-500/20 to-teal-500/20 hover:from-green-500/40 hover:to-teal-500/40 text-white font-bold py-4 px-8 rounded-xl border border-green-500/50 transition-all duration-300 transform hover:scale-105">
+          👥 Versus (2 joueurs)
+        </button>
+      </div>
     </div>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div id="countdowndisplay" style="font-size: 32px; color: #FFD700; margin-top: 20px;"></div>
-    <div class="controls">
-      <p><strong>Contrôles:</strong></p>
-      <p>Joueur 1 (Bleu): W/S | Joueur 2 (Rouge): ↑/↓ | Pause: SPACE</p>
+
+    <!-- Menu en ligne -->
+    <div id="menu_ligne" class="hidden bg-card-bg/50 backdrop-blur-sm rounded-2xl p-8 border border-neon-purple/30">
+      <h2 class="text-3xl font-bold text-neon-purple mb-8 text-center">En Ligne</h2>
+      <div class="flex flex-col gap-4">
+        <button id="solo_ligneBtn" class="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 hover:from-blue-500/40 hover:to-cyan-500/40 text-white font-bold py-4 px-8 rounded-xl border border-blue-500/50 transition-all duration-300 transform hover:scale-105">
+          ⚔️ 1v1
+        </button>
+        <button id="multiBtn" class="bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/40 hover:to-pink-500/40 text-white font-bold py-4 px-8 rounded-xl border border-purple-500/50 transition-all duration-300 transform hover:scale-105">
+          🎯 Multijoueur
+        </button>
+        <button id="tournoiBtn" class="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 hover:from-yellow-500/40 hover:to-orange-500/40 text-white font-bold py-4 px-8 rounded-xl border border-yellow-500/50 transition-all duration-300 transform hover:scale-105">
+          🏆 Tournoi
+        </button>
+      </div>
+    </div>
+
+    <!-- Zone de jeu -->
+    <div id="game" class="hidden w-full max-w-6xl">
+      <!-- Bouton restart stylisé -->
+      <button id="restartBtn" class="hidden mb-6 mx-auto bg-gradient-to-r from-neon-green/30 to-neon-blue/30 hover:from-neon-green/50 hover:to-neon-blue/50 text-white font-bold py-2 px-4 rounded-lg border border-neon-green/50 transition-all duration-300 transform hover:scale-105 animate-bounce-slow">
+        New Game
+      </button>
+      
+      <!-- Tableau de score moderne -->
+      <div id="scoreboard" class="bg-card-bg/70 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-neon-blue/20">
+        <div class="grid grid-cols-2 gap-8 text-center">
+          <div class="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-xl p-4 border border-blue-500/30">
+            <p id="scoreP1" class="text-2xl font-bold text-neon-blue">Joueur 1 : 0</p>
+          </div>
+          <div class="bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-xl p-4 border border-red-500/30">
+            <p id="scoreP2" class="text-2xl font-bold text-neon-pink">Joueur 2 : 0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Message de fin de partie -->
+      <div id="endMessage" class="text-2xl font-bold text-neon-green neon-text mt-6 text-center animate-pulse">
+      </div>
+      <!-- Canvas avec cadre futuriste -->
+      <div class="relative bg-card-bg/30 rounded-2xl p-4 border border-neon-green/30 neon-border">
+        <canvas id="gameCanvas" width="800" height="600" class="rounded-xl bg-gray-700/50 border border-neon-green/20 shadow-2xl"></canvas>
+        
+        <!-- Indicateurs de coin décoratifs -->
+        <div class="absolute top-2 left-2 w-4 h-4 border-l-2 border-t-2 border-neon-green"></div>
+        <div class="absolute top-2 right-2 w-4 h-4 border-r-2 border-t-2 border-neon-green"></div>
+        <div class="absolute bottom-2 left-2 w-4 h-4 border-l-2 border-b-2 border-neon-green"></div>
+        <div class="absolute bottom-2 right-2 w-4 h-4 border-r-2 border-b-2 border-neon-green"></div>
+      </div>
+
+      <!-- Compte à rebours stylisé -->
+      <div id="countdowndisplay" class="text-5xl font-bold text-neon-green neon-text mt-6 text-center animate-pulse"></div>
+      
+      <!-- Contrôles avec design moderne -->
+      <div id="control_1" class="hidden bg-card-bg/50 backdrop-blur-sm rounded-2xl p-6 mt-6 border border-neon-blue/20">
+        <h3 class="text-xl font-bold text-neon-blue mb-4 text-center">🎮 Contrôles</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
+          <div class="bg-blue-500/10 rounded-lg p-3 border border-blue-500/30">
+            <p id="control_player_1" class="text-blue-400 font-semibold">Joueur 1</p>
+            <p id="control_player_1_command" class="text-sm text-gray-300">W / S</p>
+          </div>
+          <div class="bg-pink-500/10 rounded-lg p-3 border border-pink-500/30">
+            <p id="control_player_2" class="text-pink-400 font-semibold">Joueur 2</p>
+            <p id="control_player_2_command" class="text-sm text-gray-300">ARROW UP / ARROW DOWN</p>
+          </div>
+        </div>
+      </div>
+            <div id="control_2" class="hidden bg-card-bg/50 backdrop-blur-sm rounded-2xl p-6 mt-6 border border-neon-blue/20">
+        <h3 class="text-xl font-bold text-neon-blue mb-4 text-center">🎮 Contrôles</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+          <div class="bg-blue-500/10 rounded-lg p-3 border border-blue-500/30">
+            <p id="control_player_1" class="text-blue-400 font-semibold">Joueur 1</p>
+            <p id="control_player_1_command" class="text-sm text-gray-300">W / S</p>
+          </div>
+          <div class="bg-blue-500/10 rounded-lg p-3 border border-blue-500/30">
+            <p id="control_player_1" class="text-blue-400 font-semibold">Joueur 2</p>
+            <p id="control_player_1_command" class="text-sm text-gray-300">J / M</p>
+          </div>
+          <div class="bg-pink-500/10 rounded-lg p-3 border border-pink-500/30">
+            <p id="control_player_2" class="text-pink-400 font-semibold">Joueur 3</p>
+            <p id="control_player_2_command" class="text-sm text-gray-300">9 / 6</p>
+          </div>          
+          <div class="bg-pink-500/10 rounded-lg p-3 border border-pink-500/30">
+            <p id="control_player_2" class="text-pink-400 font-semibold">Joueur 4</p>
+            <p id="control_player_2_command" class="text-sm text-gray-300">ARROW UP / ARROW DOWN</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Chargement du script principal -->
+  <!-- Ton script principal -->
   <script type="module" src="./dist/main.js"></script>
 </body>
 </html>

@@ -47,6 +47,10 @@ function random_bool() {
 class Pong {
     constructor(canvas, mode) {
         this.keys_pressed = {};
+        this.countdown_interval = null;
+        this.restart_timeout = null;
+        this.goal_timeout = null;
+        this.start_timeout = null;
         this.handle_keydown = (e) => {
             if (e.code === "Space")
                 this.state.is_paused = !this.state.is_paused;
@@ -164,23 +168,89 @@ class Pong {
         this.state.game_running = false;
     }
     restart() {
-        console.log("RESTART");
+        console.log("🔄 RESTART demandé");
+        this.clear_all_timers();
         this.state.restart_active = true;
         this.state.is_paused = true;
+        this.state.count_down_active = false;
+        this.state.game_running = true; // Important : garder le jeu actif
         this.ball.ball_dir_x = 0;
         this.ball.ball_dir_y = 0;
         this.update_score(0);
         this.config.ball_speed = 4.5;
         this.config.paddle_speed = 8.5;
-        setTimeout(() => {
+        this.count_down.innerText = "Nouvelle partie...";
+        this.restart_timeout = setTimeout(() => {
+            console.log("🚀 Nouvelle partie");
+            // Repositionner tous les éléments
             this.ball.ball_x = this.config.canvas_width / 2;
             this.ball.ball_y = this.config.canvas_height / 2;
             this.paddle.left_paddle_y = (this.config.canvas_height - this.config.paddle_height) / 2;
             this.paddle.right_paddle_y = (this.config.canvas_height - this.config.paddle_height) / 2;
             this.draw();
-            this.start_count_down();
+            this.start_count_down_for_restart();
             this.state.restart_active = false;
         }, 1500);
+    }
+    // Fonction améliorée pour nettoyer TOUS les timers
+    clear_all_timers() {
+        console.log("🧹 Nettoyage de tous les timers...");
+        if (this.countdown_interval) {
+            clearInterval(this.countdown_interval);
+            this.countdown_interval = null;
+            console.log("✅ Countdown interval nettoyé");
+        }
+        if (this.restart_timeout) {
+            clearTimeout(this.restart_timeout);
+            this.restart_timeout = null;
+            console.log("✅ Restart timeout nettoyé");
+        }
+        if (this.goal_timeout) {
+            clearTimeout(this.goal_timeout);
+            this.goal_timeout = null;
+            console.log("✅ Goal timeout nettoyé");
+        }
+        if (this.start_timeout) {
+            clearTimeout(this.start_timeout);
+            this.start_timeout = null;
+            console.log("✅ Start timeout nettoyé");
+        }
+        // Annule aussi l'animation frame si nécessaire
+        if (this.animation_id) {
+            cancelAnimationFrame(this.animation_id);
+            this.animation_id = 0;
+            console.log("✅ Animation frame annulée");
+        }
+    }
+    start_count_down_for_restart() {
+        let countdown = 3;
+        this.count_down.innerText = `Reprise dans : ${countdown}`;
+        this.state.count_down_active = true;
+        this.countdown_interval = setInterval(() => {
+            countdown--;
+            // Vérifier si le restart est toujours valide
+            if (this.state.restart_active) {
+                console.log("⚠️ Restart annulé pendant le countdown");
+                return;
+            }
+            if (countdown > 0) {
+                this.count_down.innerText = `Reprise dans : ${countdown}`;
+                console.log(`⏰ Countdown : ${countdown}`);
+            }
+            else {
+                console.log("🎮 Fin du countdown, reprise du jeu");
+                clearInterval(this.countdown_interval);
+                this.countdown_interval = null;
+                this.count_down.innerText = "";
+                this.state.count_down_active = false;
+                this.init_ball_direction();
+                this.start_time = performance.now();
+                this.state.is_paused = false;
+                if (this.state.game_running) {
+                    this.game_loop();
+                }
+            }
+        }, 1000);
     }
     update_paddle() {
         if (this.state.count_down_active)
@@ -269,7 +339,7 @@ class Pong {
         }
         this.config.ball_speed = 4.5;
         this.config.paddle_speed = 8.5;
-        setTimeout(() => {
+        this.goal_timeout = setTimeout(() => {
             this.ball.ball_x = this.config.canvas_width / 2;
             this.ball.ball_y = this.config.canvas_height / 2;
             this.paddle.left_paddle_y = (this.config.canvas_height - this.config.paddle_height) / 2;
@@ -306,27 +376,36 @@ class Pong {
         if (score_P2)
             score_P2.textContent = `Joueur 2 : ${this.state.right_score}`;
     }
+    // Fonction start_count_down corrigée (après un but)
     start_count_down() {
+        console.log("⏰ Démarrage du countdown après but");
         let countdown = 3;
-        if (this.state.restart_active == true)
+        // Vérifier qu'on n'est pas en train de redémarrer
+        if (this.state.restart_active) {
+            console.log("⚠️ Countdown annulé car restart actif");
             return;
-        setTimeout(() => {
-            if (this.state.restart_active == true)
-                return;
-            this.state.count_down_active = true;
-            if (!this.count_down) {
-                console.error("Element countdown non trouve");
+        }
+        this.goal_timeout = setTimeout(() => {
+            // Double vérification
+            if (this.state.restart_active) {
+                console.log("⚠️ Timeout de but annulé car restart actif");
                 return;
             }
+            this.state.count_down_active = true;
             this.count_down.innerText = `Reprise dans : ${countdown}`;
-            let count_down_interval = setInterval(() => {
+            // Utiliser this.countdown_interval
+            this.countdown_interval = setInterval(() => {
                 countdown--;
-                if (this.state.restart_active == true)
+                if (this.state.restart_active) {
+                    console.log("⚠️ Countdown de but interrompu par restart");
                     return;
-                if (countdown > 0)
+                }
+                if (countdown > 0) {
                     this.count_down.innerText = `Reprise dans : ${countdown}`;
+                }
                 else {
-                    clearInterval(count_down_interval);
+                    clearInterval(this.countdown_interval);
+                    this.countdown_interval = null;
                     this.count_down.innerText = "";
                     this.state.count_down_active = false;
                     this.init_ball_direction();
@@ -413,4 +492,4 @@ export class Game_solo {
         }
     }
 }
-//# sourceMappingURL=game.js.map
+//# sourceMappingURL=game_solo_restart_ok.js.map
