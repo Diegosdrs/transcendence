@@ -65,18 +65,20 @@ class Pong {
         this.count_down = document.getElementById("countdowndisplay");
         this.animation_id = 0;
         this.end_message = document.getElementById('endMessage');
+        this.lastTime = performance.now();
+        this.fps = 0;
         this.config =
             {
                 canvas_width: 800,
                 canvas_height: 600,
                 paddle_width: 10,
                 paddle_height: 100,
-                ball_real_speed: 8 * (3 / 2),
-                ball_speed: 4.5 * (3 / 2),
-                ball_max_speed: 12 * (3 / 2),
-                paddle_speed: 8.5 * (3 / 2),
+                ball_real_speed: 8,
+                ball_speed: 4.5,
+                ball_max_speed: 12,
+                paddle_speed: 8.5,
                 score_to_win: 5,
-                increase_vitesse: 175, //250,
+                increase_vitesse: 250,
                 time_before_new_ball: 3000
             };
         this.state =
@@ -137,6 +139,7 @@ class Pong {
             };
         this.setup_event();
         this.init_ball_direction();
+        //requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
     }
     setup_event() {
         document.addEventListener("keydown", this.handle_keydown);
@@ -163,17 +166,25 @@ class Pong {
                     this.count_down.innerText = "";
                     this.state.count_down_active = false;
                     this.start_time = performance.now();
-                    this.last_frame_time = performance.now();
                     this.game_loop();
                 }
             }, 1000);
         }, 1000);
     }
+    // gameLoop(currentTime: number)
+    // {
+    //     const delta = currentTime - this.lastTime;
+    //     this.lastTime = currentTime;
+    //     this.fps = Math.round(1000 / delta);
+    //     console.log("FPS :", this.fps);
+    //     // Ici tu mets ton update & draw
+    //     requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
+    // }
     game_loop() {
         const current_time = performance.now();
         const delta_time = current_time - this.last_frame_time;
         this.last_frame_time = current_time;
-        //let frame_fois = 0;
+        let frame_fois = 0;
         this.accumulator += delta_time;
         while (this.accumulator >= this.fixed_timestep) {
             if (!this.state.is_paused) {
@@ -185,7 +196,7 @@ class Pong {
                         //console.log("DETECTION servica IA");
                     }
                     //console.log("service IA");
-                    this.ia_ajustement(15, false);
+                    this.ia_ajustement(5, false);
                 }
                 if (this.state.game_mode == "solo" && this.state.ia_mode == true) {
                     this.ia.counter++;
@@ -196,14 +207,44 @@ class Pong {
                 //this.draw();
             }
             this.accumulator -= this.fixed_timestep;
-            //frame_fois++;
+            frame_fois++;
         }
-        //console.log(`fois frame = ${frame_fois}`)
+        console.log(`fois frame = ${frame_fois}`);
         if (!this.state.is_paused)
             this.draw();
         if (this.state.game_running == true)
-            this.animation_id = requestAnimationFrame(() => this.game_loop());
+            this.animation_id = requestAnimationFrame(() => this.game_loop()); // boucle infinie à 60 FPS
     }
+    // game_loop(): void
+    // {
+    //     if (!this.state.is_paused)
+    //     {
+    //         if (this.state.game_mode == "solo" && this.state.ia_mode == false && this.ball.ball_dir_x > 0)
+    //         {
+    //             if (this.ia.service == true)
+    //             {
+    //                 this.ia_detection();
+    //                 this.ia.continue_flag = true;
+    //                 this.ia.service = false;
+    //                 //console.log("DETECTION servica IA");
+    //             }
+    //             //console.log("service IA");
+    //             this.ia_ajustement(5, false);
+    //         }
+    //         if (this.state.game_mode == "solo" && this.state.ia_mode == true)
+    //         {
+    //             this.ia.counter++;
+    //             this.handle_paddle_move();
+    //         }
+    //         this.update_paddle();
+    //         this.update_ball();
+    //         //this.draw();
+    //     }
+    //     if (!this.state.is_paused)
+    //         this.draw();
+    //     if (this.state.game_running == true)
+    //         this.animation_id = requestAnimationFrame(() => this.game_loop()); // boucle infinie à 60 FPS
+    // }
     end_game() {
         let message = '';
         setTimeout(() => {
@@ -227,17 +268,15 @@ class Pong {
         this.state.is_paused = true;
         this.state.count_down_active = false;
         this.state.game_running = true; // Important : garder le jeu actif
-        this.last_frame_time = performance.now();
         this.ball.ball_dir_x = 0;
         this.ball.ball_dir_y = 0;
         this.update_score(0);
-        this.config.ball_speed = 4.5 * (3 / 2);
-        this.config.paddle_speed = 8.5 * (3 / 2);
+        this.config.ball_speed = 4.5;
+        this.config.paddle_speed = 8.5;
         this.count_down.innerText = "Nouvelle partie...";
         this.restart_timeout = setTimeout(() => {
             console.log("🚀 Nouvelle partie");
             // Repositionner tous les éléments
-            this.last_frame_time = performance.now();
             this.ball.ball_x = this.config.canvas_width / 2;
             this.ball.ball_y = this.config.canvas_height / 2;
             this.paddle.left_paddle_y = (this.config.canvas_height - this.config.paddle_height) / 2;
@@ -301,7 +340,6 @@ class Pong {
                 this.start_time = performance.now();
                 this.state.is_paused = false;
                 if (this.state.game_running) {
-                    this.last_frame_time = performance.now();
                     this.game_loop();
                 }
             }
@@ -321,141 +359,18 @@ class Pong {
                 this.paddle.right_paddle_y += this.config.paddle_speed;
         }
     }
-    // Fonction utilitaire pour la détection continue de collision
-    // Cette fonction vérifie si un segment de droite (trajectoire de la balle) 
-    // intersecte avec un rectangle (paddle)
-    checkLineRectCollision(lineStart, lineEnd, rect) {
-        // Vérifier d'abord si le point de fin est déjà dans le rectangle
-        // (cas où la balle est déjà en collision)
-        if (lineEnd.x >= rect.x && lineEnd.x <= rect.x + rect.width &&
-            lineEnd.y >= rect.y && lineEnd.y <= rect.y + rect.height) {
-            return { collision: true, intersectionPoint: lineEnd };
-        }
-        // Calculer les 4 côtés du rectangle
-        const rectLines = [
-            // Côté gauche
-            { start: { x: rect.x, y: rect.y }, end: { x: rect.x, y: rect.y + rect.height } },
-            // Côté droit  
-            { start: { x: rect.x + rect.width, y: rect.y }, end: { x: rect.x + rect.width, y: rect.y + rect.height } },
-            // Côté haut
-            { start: { x: rect.x, y: rect.y }, end: { x: rect.x + rect.width, y: rect.y } },
-            // Côté bas
-            { start: { x: rect.x, y: rect.y + rect.height }, end: { x: rect.x + rect.width, y: rect.y + rect.height } }
-        ];
-        // Vérifier l'intersection avec chaque côté du rectangle
-        for (const rectLine of rectLines) {
-            const intersection = this.getLineIntersection(lineStart, lineEnd, rectLine.start, rectLine.end);
-            if (intersection) {
-                return { collision: true, intersectionPoint: intersection };
-            }
-        }
-        return { collision: false };
-    }
-    // Fonction pour calculer l'intersection entre deux segments de droite
-    getLineIntersection(p1, p2, p3, p4) {
-        const x1 = p1.x, y1 = p1.y;
-        const x2 = p2.x, y2 = p2.y;
-        const x3 = p3.x, y3 = p3.y;
-        const x4 = p4.x, y4 = p4.y;
-        // Calculer les dénominateurs pour éviter la division par zéro
-        const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-        if (Math.abs(denom) < 1e-10)
-            return null; // Lignes parallèles
-        // Calculer les paramètres t et u
-        const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-        const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
-        // Vérifier si l'intersection est dans les deux segments
-        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-            return {
-                x: x1 + t * (x2 - x1),
-                y: y1 + t * (y2 - y1)
-            };
-        }
-        return null;
-    }
     update_ball() {
-        if (this.state.is_paused || this.state.count_down_active)
+        if (this.state.is_paused)
             return;
-        // Sauvegarder la position précédente pour la détection continue
-        const previousX = this.ball.ball_x;
-        const previousY = this.ball.ball_y;
-        // Calculer la nouvelle position
-        const newX = this.ball.ball_x + this.ball.ball_dir_x;
-        const newY = this.ball.ball_y + this.ball.ball_dir_y;
+        if (this.state.count_down_active)
+            return;
+        this.ball.ball_x += this.ball.ball_dir_x;
+        this.ball.ball_y += this.ball.ball_dir_y;
         if (performance.now() - this.start_time >= this.config.increase_vitesse && this.config.ball_speed < this.config.ball_max_speed) {
             this.config.ball_speed += 0.1;
             this.config.paddle_speed += 0.05;
             this.start_time = performance.now();
         }
-        // Vérifier les collisions avec les paddles AVANT de mettre à jour la position
-        // Cela évite que la balle traverse les paddles même à haute vitesse
-        // Collision avec le paddle gauche
-        if (this.ball.ball_dir_x < 0) {
-            const leftPaddleRect = {
-                x: 25,
-                y: this.paddle.left_paddle_y - this.paddle.marge,
-                width: 15, // De x=25 à x=40
-                height: this.config.paddle_height + (this.paddle.marge * 2)
-            };
-            const leftCollision = this.checkLineRectCollision({ x: previousX, y: previousY }, { x: newX, y: newY }, leftPaddleRect);
-            if (leftCollision.collision) {
-                console.log(`🏓 Rebond raquette gauche détecté par collision continue`);
-                // Positionner la balle au point d'intersection pour éviter qu'elle reste dans le paddle
-                if (leftCollision.intersectionPoint) {
-                    this.ball.ball_x = leftCollision.intersectionPoint.x;
-                    this.ball.ball_y = leftCollision.intersectionPoint.y;
-                }
-                // Appliquer la logique de rebond
-                if (this.config.ball_speed < this.config.ball_real_speed) {
-                    this.config.ball_speed = this.config.ball_real_speed;
-                }
-                this.update_ball_dir(0);
-                this.normalize_ball_speed();
-                if (this.state.game_mode == "solo") {
-                    this.state.ia_mode = true;
-                    this.ia_init();
-                    this.ia_detection();
-                    this.ia_init_difficulty();
-                    this.ia.counter = 0;
-                    this.ball.current_rebond = 0;
-                    this.paddle.current_shot++;
-                }
-                return; // Sortir de la fonction pour éviter d'autres collisions cette frame
-            }
-        }
-        // Collision avec le paddle droit
-        if (this.ball.ball_dir_x > 0) {
-            const rightPaddleRect = {
-                x: this.config.canvas_width - 40,
-                y: this.paddle.right_paddle_y - this.paddle.marge,
-                width: 15, // De canvas_width-40 à canvas_width-25
-                height: this.config.paddle_height + (this.paddle.marge * 2)
-            };
-            const rightCollision = this.checkLineRectCollision({ x: previousX, y: previousY }, { x: newX, y: newY }, rightPaddleRect);
-            if (rightCollision.collision) {
-                console.log(`🏓 Rebond raquette droite détecté par collision continue`);
-                // Positionner la balle au point d'intersection
-                if (rightCollision.intersectionPoint) {
-                    this.ball.ball_x = rightCollision.intersectionPoint.x;
-                    this.ball.ball_y = rightCollision.intersectionPoint.y;
-                }
-                // Appliquer la logique de rebond
-                if (this.config.ball_speed < this.config.ball_real_speed) {
-                    this.config.ball_speed = this.config.ball_real_speed;
-                }
-                this.update_ball_dir(1);
-                this.normalize_ball_speed();
-                if (this.state.game_mode == "solo") {
-                    this.state.ia_mode = false;
-                    this.ball.current_rebond = 0;
-                }
-                return; // Sortir de la fonction pour éviter d'autres collisions cette frame
-            }
-        }
-        // Si aucune collision avec les paddles, mettre à jour la position normalement
-        this.ball.ball_x = newX;
-        this.ball.ball_y = newY;
-        // Vérifier les buts (logique inchangée)
         if (this.ball.ball_x < 0 || this.ball.ball_x > this.config.canvas_width) {
             this.state.is_paused = true;
             console.log(`🎯 BUT ! ball_x = ${this.ball.ball_x} et ballspeed = ${this.config.ball_speed} et rebond = ${this.ball.current_rebond} et delta error = ${this.ia.delta_error} et delta_paddle = ${this.ia.delta_paddle}`);
@@ -469,102 +384,66 @@ class Pong {
             }
             return;
         }
-        // Rebonds sur les murs haut et bas (logique inchangée)
+        // Rebonds sur les murs haut et bas
         if (this.ball.ball_y <= 5 || this.ball.ball_y >= this.config.canvas_height - 5) {
+            //console.log(`AVANT rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
             if (this.ball.ball_x <= 50) {
-                this.ball.ball_y = this.ball.ball_y <= 5 ? 6 : this.config.canvas_height - 6;
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                //console.log("ca passe ici zeubi")
             }
             if (this.ball.ball_x >= this.config.canvas_width - 50) {
-                this.ball.ball_y = this.ball.ball_y <= 5 ? 6 : this.config.canvas_height - 6;
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                //console.log("ca passe ici woula")
             }
+            //console.log(`APRES rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
             this.ball.ball_dir_y *= -1;
             this.ball.current_rebond++;
             this.normalize_ball_speed();
         }
+        // raquette gauche
+        if (this.ball.ball_x <= 40 &&
+            this.ball.ball_x >= 25 &&
+            this.ball.ball_y >= this.paddle.left_paddle_y - this.paddle.marge &&
+            this.ball.ball_y <= this.paddle.left_paddle_y + this.config.paddle_height + this.paddle.marge &&
+            this.ball.ball_dir_x < 0) {
+            console.log(`🏓 Rebond raquette gauche à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
+            if (this.config.ball_speed < this.config.ball_real_speed)
+                this.config.ball_speed = this.config.ball_real_speed;
+            this.update_ball_dir(0);
+            this.normalize_ball_speed();
+            if (this.state.game_mode == "solo") {
+                this.state.ia_mode = true;
+                this.ia_init();
+                this.ia_detection();
+                this.ia_init_difficulty();
+                this.ia.counter = 0;
+                this.ball.current_rebond = 0;
+                this.paddle.current_shot++;
+            }
+        }
+        // raquette droite
+        if (this.ball.ball_x >= this.config.canvas_width - 40 &&
+            this.ball.ball_x <= this.config.canvas_width - 25 &&
+            this.ball.ball_y >= this.paddle.right_paddle_y - this.paddle.marge &&
+            this.ball.ball_y <= this.paddle.right_paddle_y + this.config.paddle_height + this.paddle.marge &&
+            this.ball.ball_dir_x > 0) {
+            console.log(`🏓 Rebond raquette droite à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
+            if (this.config.ball_speed < this.config.ball_real_speed)
+                this.config.ball_speed = this.config.ball_real_speed;
+            this.update_ball_dir(1);
+            this.normalize_ball_speed();
+            if (this.state.game_mode == "solo") {
+                this.state.ia_mode = false;
+                this.ball.current_rebond = 0;
+            }
+        }
     }
-    // if (this.ball.ball_x < 0 || this.ball.ball_x > this.config.canvas_width)
-    // {
-    //     this.state.is_paused = true;
-    //     console.log(`🎯 BUT ! ball_x = ${this.ball.ball_x} et ballspeed = ${this.config.ball_speed} et rebond = ${this.ball.current_rebond} et delta error = ${this.ia.delta_error} et delta_paddle = ${this.ia.delta_paddle}`);
-    //     this.handle_goal();
-    //     if (this.state.game_mode == "solo")
-    //     {
-    //         this.state.ia_mode = false;
-    //         this.ia.service = true;
-    //         this.paddle.current_shot = 0;
-    //         this.ia.delta_error = 0;
-    //         this.ia.delta_paddle = 0;
-    //     }
-    //     return;
-    // }
-    // // Rebonds sur les murs haut et bas
-    // if (this.ball.ball_y <= 5 || this.ball.ball_y >= this.config.canvas_height - 5) 
-    // {
-    //     //console.log(`AVANT rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
-    //     if (this.ball.ball_x <= 50 )
-    //     {
-    //         if (this.ball.ball_y <= 5)
-    //             this.ball.ball_y = 6;
-    //         else
-    //             this.ball.ball_y = this.config.canvas_height - 6;
-    //         //console.log("ca passe ici zeubi")
-    //     }
-    //     if (this.ball.ball_x >= this.config.canvas_width - 50)
-    //     {
-    //         if (this.ball.ball_y <= 5)
-    //             this.ball.ball_y = 6;
-    //         else
-    //             this.ball.ball_y = this.config.canvas_height - 6;
-    //         //console.log("ca passe ici woula")
-    //     }
-    //     //console.log(`APRES rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
-    //     this.ball.ball_dir_y *= -1;
-    //     this.ball.current_rebond++;
-    //     this.normalize_ball_speed();
-    // }
-    // // raquette gauche
-    // if (
-    //     this.ball.ball_x <= 40 &&
-    //     this.ball.ball_x >= 25 &&
-    //     this.ball.ball_y >= this.paddle.left_paddle_y - this.paddle.marge &&
-    //     this.ball.ball_y <= this.paddle.left_paddle_y + this.config.paddle_height + this.paddle.marge &&
-    //     this.ball.ball_dir_x < 0)
-    // {
-    //     console.log(`🏓 Rebond raquette gauche à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
-    //     if (this.config.ball_speed < this.config.ball_real_speed)
-    //         this.config.ball_speed = this.config.ball_real_speed;
-    //     this.update_ball_dir(0);
-    //     this.normalize_ball_speed();
-    //     if (this.state.game_mode == "solo")
-    //     {
-    //         this.state.ia_mode = true;
-    //         this.ia_init();
-    //         this.ia_detection();
-    //         this.ia_init_difficulty();
-    //         this.ia.counter = 0;
-    //         this.ball.current_rebond = 0;
-    //         this.paddle.current_shot++;
-    //     }
-    // }
-    // // raquette droite
-    // if (
-    //     this.ball.ball_x >= this.config.canvas_width - 40 &&
-    //     this.ball.ball_x <= this.config.canvas_width - 25 &&
-    //     this.ball.ball_y >= this.paddle.right_paddle_y - this.paddle.marge &&
-    //     this.ball.ball_y <= this.paddle.right_paddle_y + this.config.paddle_height + this.paddle.marge &&
-    //     this.ball.ball_dir_x > 0)
-    // {
-    //     console.log(`🏓 Rebond raquette droite à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
-    //     if (this.config.ball_speed < this.config.ball_real_speed)
-    //         this.config.ball_speed = this.config.ball_real_speed;
-    //     this.update_ball_dir(1);
-    //     this.normalize_ball_speed();
-    //     if (this.state.game_mode == "solo")
-    //     {
-    //         this.state.ia_mode = false;
-    //         this.ball.current_rebond = 0;
-    //     }
-    // }
     handle_goal() {
         this.ball.ball_dir_x = 0;
         this.ball.ball_dir_y = 0;
@@ -573,8 +452,8 @@ class Pong {
             this.end_game();
             return;
         }
-        this.config.ball_speed = 4.5 * (3 / 2);
-        this.config.paddle_speed = 8.5 * (3 / 2);
+        this.config.ball_speed = 4.5;
+        this.config.paddle_speed = 8.5;
         this.goal_timeout = setTimeout(() => {
             this.ball.ball_x = this.config.canvas_width / 2;
             this.ball.ball_y = this.config.canvas_height / 2;
@@ -652,7 +531,6 @@ class Pong {
     }
     init_ball_direction() {
         this.ball.angle = get_random_playable_angle();
-        //this.ball.angle = 0;
         this.ball.ball_dir_x = this.config.ball_speed * Math.cos(this.ball.angle);
         this.ball.ball_dir_y = this.config.ball_speed * Math.sin(this.ball.angle);
     }
@@ -1121,4 +999,4 @@ export class Game_solo {
         }
     }
 }
-//# sourceMappingURL=game_solo.js.map
+//# sourceMappingURL=game_solo_60.js.map

@@ -68,17 +68,16 @@ class Pong {
         this.restart_btn.addEventListener('click', () => this.restart());
         this.restart_btn.style.display = 'none';
         this.end_message = document.getElementById('endMessage');
-        this.last_frame_time = 0;
         this.config =
             {
                 canvas_width: 800,
                 canvas_height: 600,
                 paddle_width: 10,
                 paddle_height: 78,
-                ball_real_speed: 4 * (3 / 2),
-                ball_speed: 3.5 * (3 / 2),
-                ball_max_speed: 4.5 * (3 / 2),
-                paddle_speed: 5.25 * (3 / 2),
+                ball_real_speed: 4,
+                ball_speed: 3.5,
+                ball_max_speed: 4.5,
+                paddle_speed: 5.25,
                 score_to_win: 5,
                 increase_vitesse: 250,
                 time_before_new_ball: 3000
@@ -112,6 +111,7 @@ class Pong {
                 marge: 5,
                 current_shot: 0
             };
+        this.clear_all_timers();
         this.setup_event();
         this.init_ball_direction();
     }
@@ -124,7 +124,7 @@ class Pong {
         //console.log("ca demarre");
         let countdown = 3;
         this.count_down.innerText = `Debut de partie dans`;
-        setTimeout(() => {
+        this.start_timeout = setTimeout(() => {
             this.state.count_down_active = true;
             if (!this.count_down) {
                 console.error("Element countdown non trouve");
@@ -136,16 +136,36 @@ class Pong {
                 if (countdown > 0)
                     this.count_down.innerText = `${countdown}`;
                 else {
-                    clearInterval(count_down_interval);
+                    clearInterval(this.countdown_interval);
+                    this.countdown_interval = null;
                     this.count_down.innerText = "";
                     this.state.count_down_active = false;
                     this.start_time = performance.now();
-                    this.last_frame_time = performance.now();
                     this.game_loop();
                 }
             }, 1000);
         }, 1000);
     }
+    // game_loop(): void
+    // {
+    //     const current_time = performance.now();
+    //     const delta_time = current_time - this.last_frame_time;
+    //     this.last_frame_time = current_time;
+    //     this.accumulator += delta_time;
+    //     while (this.accumulator >= this.fixed_timestep)
+    //     {
+    //         if (!this.state.is_paused)
+    //         {
+    //             this.update_paddle();
+    //             this.update_ball();
+    //             this.accumulator -= this.fixed_timestep;
+    //         }
+    //     }
+    //     if (!this.state.is_paused)
+    //         this.draw();
+    //     if (this.state.game_running == true)
+    //         this.animation_id = requestAnimationFrame(() => this.game_loop()); // boucle infinie à 60 FPS
+    // }
     game_loop() {
         const current_time = performance.now();
         const delta_time = current_time - this.last_frame_time;
@@ -188,12 +208,12 @@ class Pong {
             this.end_message.style.display = 'none';
         this.state.is_paused = true;
         this.state.count_down_active = false;
-        this.state.game_running = true;
+        this.state.game_running = true; // Important : garder le jeu actif
         this.ball.ball_dir_x = 0;
         this.ball.ball_dir_y = 0;
         this.update_score(0);
-        this.config.ball_speed = 3.5 * (3 / 2);
-        this.config.paddle_speed = 5.25 * (3 / 2);
+        this.config.ball_speed = 3.5;
+        this.config.paddle_speed = 8.5;
         this.count_down.innerText = "Nouvelle partie...";
         this.restart_timeout = setTimeout(() => {
             console.log("🚀 Nouvelle partie");
@@ -237,6 +257,9 @@ class Pong {
             this.animation_id = 0;
             //console.log("✅ Animation frame annulée");
         }
+        this.state.count_down_active = false;
+        this.state.restart_active = false;
+        this.count_down.innerText = "";
     }
     start_count_down_for_restart() {
         let countdown = 3;
@@ -263,7 +286,6 @@ class Pong {
                 this.start_time = performance.now();
                 this.state.is_paused = false;
                 if (this.state.game_running) {
-                    this.last_frame_time = performance.now();
                     this.game_loop();
                 }
             }
@@ -293,191 +315,81 @@ class Pong {
         if (this.keys_pressed["ArrowDown"] && this.paddle.paddles.p4_y < this.config.canvas_height - this.config.paddle_height)
             this.paddle.paddles.p4_y += this.config.paddle_speed;
     }
-    // Fonction utilitaire pour la détection continue de collision
-    // Cette fonction vérifie si un segment de droite (trajectoire de la balle) 
-    // intersecte avec un rectangle (paddle)
-    checkLineRectCollision(lineStart, lineEnd, rect) {
-        // Vérifier d'abord si le point de fin est déjà dans le rectangle
-        // (cas où la balle est déjà en collision)
-        if (lineEnd.x >= rect.x && lineEnd.x <= rect.x + rect.width &&
-            lineEnd.y >= rect.y && lineEnd.y <= rect.y + rect.height) {
-            return { collision: true, intersectionPoint: lineEnd };
-        }
-        // Calculer les 4 côtés du rectangle
-        const rectLines = [
-            // Côté gauche
-            { start: { x: rect.x, y: rect.y }, end: { x: rect.x, y: rect.y + rect.height } },
-            // Côté droit  
-            { start: { x: rect.x + rect.width, y: rect.y }, end: { x: rect.x + rect.width, y: rect.y + rect.height } },
-            // Côté haut
-            { start: { x: rect.x, y: rect.y }, end: { x: rect.x + rect.width, y: rect.y } },
-            // Côté bas
-            { start: { x: rect.x, y: rect.y + rect.height }, end: { x: rect.x + rect.width, y: rect.y + rect.height } }
-        ];
-        // Vérifier l'intersection avec chaque côté du rectangle
-        for (const rectLine of rectLines) {
-            const intersection = this.getLineIntersection(lineStart, lineEnd, rectLine.start, rectLine.end);
-            if (intersection) {
-                return { collision: true, intersectionPoint: intersection };
-            }
-        }
-        return { collision: false };
-    }
-    // Fonction pour calculer l'intersection entre deux segments de droite
-    getLineIntersection(p1, p2, p3, p4) {
-        const x1 = p1.x, y1 = p1.y;
-        const x2 = p2.x, y2 = p2.y;
-        const x3 = p3.x, y3 = p3.y;
-        const x4 = p4.x, y4 = p4.y;
-        // Calculer les dénominateurs pour éviter la division par zéro
-        const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-        if (Math.abs(denom) < 1e-10)
-            return null; // Lignes parallèles
-        // Calculer les paramètres t et u
-        const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-        const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
-        // Vérifier si l'intersection est dans les deux segments
-        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-            return {
-                x: x1 + t * (x2 - x1),
-                y: y1 + t * (y2 - y1)
-            };
-        }
-        return null;
-    }
-    // Votre méthode update_ball() modifiée pour le 2v2 avec la détection continue
     update_ball() {
-        if (this.state.is_paused || this.state.count_down_active)
+        if (this.state.is_paused)
             return;
-        // Sauvegarder la position précédente pour la détection continue
-        // C'est crucial car nous devons analyser le "chemin" parcouru par la balle
-        const previousX = this.ball.ball_x;
-        const previousY = this.ball.ball_y;
-        // Calculer la nouvelle position théorique
-        const newX = this.ball.ball_x + this.ball.ball_dir_x;
-        const newY = this.ball.ball_y + this.ball.ball_dir_y;
-        // Gestion de l'augmentation de vitesse au cours du temps
+        if (this.state.count_down_active)
+            return;
+        this.ball.ball_x += this.ball.ball_dir_x;
+        this.ball.ball_y += this.ball.ball_dir_y;
         if (performance.now() - this.start_time >= this.config.increase_vitesse && this.config.ball_speed < this.config.ball_max_speed) {
             this.config.ball_speed += 0.1;
             this.config.paddle_speed += 0.05;
             this.start_time = performance.now();
         }
-        // Vérifier les collisions avec les paddles de GAUCHE
-        // On vérifie seulement si la balle se dirige vers la gauche (optimisation)
-        if (this.ball.ball_dir_x < 0) {
-            // Créer les rectangles pour les deux paddles de gauche (P1 et P2)
-            const leftPaddles = [
-                {
-                    id: 1,
-                    rect: {
-                        x: 25,
-                        y: this.paddle.paddles.p1_y - this.paddle.marge,
-                        width: 15, // De x=25 à x=40
-                        height: this.config.paddle_height + (this.paddle.marge * 2)
-                    }
-                },
-                {
-                    id: 2,
-                    rect: {
-                        x: 25,
-                        y: this.paddle.paddles.p2_y - this.paddle.marge,
-                        width: 15,
-                        height: this.config.paddle_height + (this.paddle.marge * 2)
-                    }
-                }
-            ];
-            // Vérifier la collision avec chaque paddle de gauche
-            for (const paddle of leftPaddles) {
-                const collision = this.checkLineRectCollision({ x: previousX, y: previousY }, { x: newX, y: newY }, paddle.rect);
-                if (collision.collision) {
-                    console.log(`🏓 Rebond raquette P${paddle.id} détecté par collision continue`);
-                    // Positionner la balle au point d'intersection exact
-                    // Cela évite que la balle reste "coincée" dans le paddle
-                    if (collision.intersectionPoint) {
-                        this.ball.ball_x = collision.intersectionPoint.x;
-                        this.ball.ball_y = collision.intersectionPoint.y;
-                    }
-                    // Appliquer la logique de rebond spécifique au paddle touché
-                    if (paddle.id === 1) {
-                        if (this.config.ball_speed < this.config.ball_real_speed) {
-                            this.config.ball_speed = this.config.ball_real_speed;
-                        }
-                        this.update_ball_dir(1);
-                    }
-                    else {
-                        this.update_ball_dir(2);
-                    }
-                    this.normalize_ball_speed();
-                    return; // Sortir immédiatement pour éviter d'autres collisions cette frame
-                }
-            }
-        }
-        // Vérifier les collisions avec les paddles de DROITE
-        // On vérifie seulement si la balle se dirige vers la droite
-        if (this.ball.ball_dir_x > 0) {
-            // Créer les rectangles pour les deux paddles de droite (P3 et P4)
-            const rightPaddles = [
-                {
-                    id: 3,
-                    rect: {
-                        x: this.config.canvas_width - 40,
-                        y: this.paddle.paddles.p3_y - this.paddle.marge,
-                        width: 15, // De canvas_width-40 à canvas_width-25
-                        height: this.config.paddle_height + (this.paddle.marge * 2)
-                    }
-                },
-                {
-                    id: 4,
-                    rect: {
-                        x: this.config.canvas_width - 40,
-                        y: this.paddle.paddles.p4_y - this.paddle.marge,
-                        width: 15,
-                        height: this.config.paddle_height + (this.paddle.marge * 2)
-                    }
-                }
-            ];
-            // Vérifier la collision avec chaque paddle de droite
-            for (const paddle of rightPaddles) {
-                const collision = this.checkLineRectCollision({ x: previousX, y: previousY }, { x: newX, y: newY }, paddle.rect);
-                if (collision.collision) {
-                    console.log(`🏓 Rebond raquette P${paddle.id} détecté par collision continue`);
-                    // Positionner la balle au point d'intersection exact
-                    if (collision.intersectionPoint) {
-                        this.ball.ball_x = collision.intersectionPoint.x;
-                        this.ball.ball_y = collision.intersectionPoint.y;
-                    }
-                    // Appliquer la logique de rebond spécifique au paddle touché
-                    this.update_ball_dir(paddle.id);
-                    this.normalize_ball_speed();
-                    return; // Sortir immédiatement pour éviter d'autres collisions cette frame
-                }
-            }
-        }
-        // Si aucune collision avec les paddles n'a été détectée, 
-        // mettre à jour la position de la balle normalement
-        this.ball.ball_x = newX;
-        this.ball.ball_y = newY;
-        // Vérifier les buts (logique inchangée)
         if (this.ball.ball_x < 0 || this.ball.ball_x > this.config.canvas_width) {
             this.state.is_paused = true;
             console.log(`🎯 BUT ! ball_x = ${this.ball.ball_x} et ballspeed = ${this.config.ball_speed}`);
             this.handle_goal();
             return;
         }
-        // Rebonds sur les murs haut et bas (logique inchangée)
-        // Cette partie gère les collisions avec les bordures horizontales
+        // Rebonds sur les murs haut et bas
         if (this.ball.ball_y <= 5 || this.ball.ball_y >= this.config.canvas_height - 5) {
-            // Ajustement de position pour éviter que la balle reste coincée dans les murs
+            //console.log(`AVANT rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
             if (this.ball.ball_x <= 50) {
-                this.ball.ball_y = this.ball.ball_y <= 5 ? 6 : this.config.canvas_height - 6;
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                //console.log("ca passe ici zeubi")
             }
             if (this.ball.ball_x >= this.config.canvas_width - 50) {
-                this.ball.ball_y = this.ball.ball_y <= 5 ? 6 : this.config.canvas_width - 6;
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                //console.log("ca passe ici woula")
             }
-            // Inverser la direction verticale et compter le rebond
+            //console.log(`APRES rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
             this.ball.ball_dir_y *= -1;
             this.ball.current_rebond++;
             this.normalize_ball_speed();
+        }
+        // raquettes de gauche
+        if (this.ball.ball_x <= 40 && this.ball.ball_x >= 25) {
+            if (this.ball.ball_y >= this.paddle.paddles.p1_y - this.paddle.marge &&
+                this.ball.ball_y <= this.paddle.paddles.p1_y + this.config.paddle_height + this.paddle.marge &&
+                this.ball.ball_dir_x < 0) {
+                console.log(`🏓 Rebond raquette P1 à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
+                if (this.config.ball_speed < this.config.ball_real_speed)
+                    this.config.ball_speed = this.config.ball_real_speed;
+                this.update_ball_dir(1);
+                this.normalize_ball_speed();
+            }
+            else if (this.ball.ball_y >= this.paddle.paddles.p2_y - this.paddle.marge &&
+                this.ball.ball_y <= this.paddle.paddles.p2_y + this.config.paddle_height + this.paddle.marge &&
+                this.ball.ball_dir_x < 0) {
+                console.log(`🏓 Rebond raquette P2 à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
+                this.update_ball_dir(2);
+                this.normalize_ball_speed();
+            }
+        }
+        // raquettes droite
+        if (this.ball.ball_x >= this.config.canvas_width - 40 && this.ball.ball_x <= this.config.canvas_width - 25) {
+            if (this.ball.ball_y >= this.paddle.paddles.p3_y - this.paddle.marge &&
+                this.ball.ball_y <= this.paddle.paddles.p3_y + this.config.paddle_height + this.paddle.marge &&
+                this.ball.ball_dir_x > 0) {
+                console.log(`🏓 Rebond raquette P3 à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
+                this.update_ball_dir(3);
+                this.normalize_ball_speed();
+            }
+            else if (this.ball.ball_y >= this.paddle.paddles.p4_y - this.paddle.marge &&
+                this.ball.ball_y <= this.paddle.paddles.p4_y + this.config.paddle_height + this.paddle.marge &&
+                this.ball.ball_dir_x > 0) {
+                console.log(`🏓 Rebond raquette P4 à x=${this.ball.ball_x} et y=${this.ball.ball_y}`);
+                this.update_ball_dir(4);
+                this.normalize_ball_speed();
+            }
         }
     }
     handle_goal() {
@@ -488,8 +400,8 @@ class Pong {
             this.end_game();
             return;
         }
-        this.config.ball_speed = 3.5 * (3 / 2);
-        this.config.paddle_speed = 5.25 * (3 / 2);
+        this.config.ball_speed = 4.5;
+        this.config.paddle_speed = 5.25;
         setTimeout(() => {
             this.ball.ball_x = this.config.canvas_width / 2;
             this.ball.ball_y = this.config.canvas_height / 2;
@@ -680,4 +592,4 @@ export class Game_ligne {
         }
     }
 }
-//# sourceMappingURL=game_ligne.js.map
+//# sourceMappingURL=game_ligne_copy.js.map
