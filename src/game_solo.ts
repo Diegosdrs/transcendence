@@ -35,6 +35,8 @@ interface ball_interface
 {
     ball_x: number;
     ball_y: number;
+    prev_x: number;
+    prev_y: number;
     ball_dir_x: number;
     ball_dir_y: number;
     angle: number;
@@ -77,6 +79,18 @@ interface ia_interface
     delta_paddle: number;
     delta_error: number;
     error_percent: number;
+}
+
+interface data_score
+{
+    ia_mode: boolean;
+    winner: boolean;
+    score: number;
+    score_adv: number;
+    point_marque_moitie_up: number;
+    point_marque_moitie_down: number;
+    point_perdu_moitie_up: number;
+    point_perdu_moitie_down: number;
 }
 
 
@@ -169,6 +183,7 @@ class Pong
     private accumulator: number = 0;
     private fixed_timestep: number = 16.67;
     private last_frame_time: number = 0;
+    private data: data_score;
 
 
     constructor(canvas : HTMLCanvasElement, mode: 'solo' | 'versus')
@@ -189,7 +204,7 @@ class Pong
             ball_real_speed: 8 * (3/2),
             ball_speed: 4.5 * (3/2),
             ball_max_speed: 12 * (3/2),
-            paddle_speed: 8.5 * (3/2),
+            paddle_speed: 7.5 * (3/2),
             score_to_win: 5,
             increase_vitesse: 175, //250,
             time_before_new_ball: 3000
@@ -211,6 +226,8 @@ class Pong
         {
             ball_x: this.config.canvas_width / 2,
             ball_y: this.config.canvas_height / 2,
+            prev_x: 0,
+            prev_y: 0,
             ball_dir_x: 0,
             ball_dir_y: 0,
             angle: 0,
@@ -255,6 +272,18 @@ class Pong
             error_percent: 0.2
         }
 
+        this.data = 
+        {
+            ia_mode: false,
+            winner: false,
+            score: 0,
+            score_adv: 0,
+            point_marque_moitie_up: 0,
+            point_marque_moitie_down: 0,
+            point_perdu_moitie_up: 0,
+            point_perdu_moitie_down: 0,
+        }
+
         this.setup_event();
         this.init_ball_direction();
     }
@@ -282,7 +311,7 @@ class Pong
 
     start(): void
     {
-        this.draw();
+        this.draw(1);
         //console.log("ca demarre");
         let countdown = 3;
         this.count_down.innerText = `Debut de partie dans`;
@@ -321,10 +350,23 @@ class Pong
     game_loop(): void
     {
         const current_time = performance.now()
-        const delta_time = current_time - this.last_frame_time;
-        this.last_frame_time = current_time;
-        //let frame_fois = 0;
 
+        // protection spirale de la mort
+        const raw_delta_time = current_time - this.last_frame_time;
+        let delta_time;
+        if (raw_delta_time > 1000)
+        {
+            console.log("Très long délai détecté, réinitialisation du timing");
+            delta_time = this.fixed_timestep; // Traiter comme un frame normal
+        }
+        else
+            delta_time = Math.min(raw_delta_time, 250); // Protection normale
+
+        if (raw_delta_time > 250)
+            console.warn(`Spirale de la mort évitée ! Temps réel: ${raw_delta_time.toFixed(2)}ms, temps traité: ${delta_time}ms`);
+        
+
+        this.last_frame_time = current_time;
         this.accumulator += delta_time;
 
         while(this.accumulator >= this.fixed_timestep)
@@ -357,8 +399,11 @@ class Pong
             //frame_fois++;
         }
         //console.log(`fois frame = ${frame_fois}`)
+
+        const interpolation = this.accumulator / this.fixed_timestep;
+
         if (!this.state.is_paused)
-            this.draw();
+            this.draw(interpolation);
 
 
         if (this.state.game_running == true)
@@ -368,6 +413,7 @@ class Pong
     end_game(): void
     {
         let message = '';
+        this.handle_data();
         setTimeout(() =>
         {
             if (this.state.left_score == this.config.score_to_win)
@@ -383,6 +429,18 @@ class Pong
         }, 1000);
         this.state.game_running = false;
     }   
+
+    handle_data()
+    {
+        if (this.state.ia_mode == true)
+            this.data.ia_mode = true;
+        this.data.score = this.state.left_score;
+        this.data.score_adv = this.state.right_score;
+        if (this.data.score > this.data.score_adv)
+            this.data.winner = true;
+
+        //APPEL DE L'API et lui envoyer l'interface data !
+    }
 
     restart(): void
     {
@@ -417,7 +475,7 @@ class Pong
             this.ball.ball_y = this.config.canvas_height / 2;
             this.paddle.left_paddle_y = (this.config.canvas_height - this.config.paddle_height) / 2;
             this.paddle.right_paddle_y = (this.config.canvas_height - this.config.paddle_height) / 2;
-            this.draw();
+            this.draw(1);
             this.start_count_down_for_restart();
             this.state.restart_active = false;
 
@@ -599,6 +657,10 @@ class Pong
         if (this.state.is_paused || this.state.count_down_active)
             return;
 
+        // garder en memoire les positions differentes pour l'interpolation
+        this.ball.prev_x = this.ball.ball_x;
+        this.ball.prev_y = this.ball.ball_y;
+
         // Sauvegarder la position précédente pour la détection continue
         const previousX = this.ball.ball_x;
         const previousY = this.ball.ball_y;
@@ -736,14 +798,26 @@ class Pong
         // Rebonds sur les murs haut et bas (logique inchangée)
         if (this.ball.ball_y <= 5 || this.ball.ball_y >= this.config.canvas_height - 5)
         {
-            if (this.ball.ball_x <= 50)
+            console.log(`AVANT rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
+
+            if (this.ball.ball_x <= 70 )
             {
-                this.ball.ball_y = this.ball.ball_y <= 5 ? 6 : this.config.canvas_height - 6;
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                console.log("ca passe ici zeubi")
             }
-            if (this.ball.ball_x >= this.config.canvas_width - 50)
+            if (this.ball.ball_x >= this.config.canvas_width - 70)
             {
-                this.ball.ball_y = this.ball.ball_y <= 5 ? 6 : this.config.canvas_height - 6;
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                console.log("ca passe ici woula")
             }
+
+            console.log(`APRES rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
             
             this.ball.ball_dir_y *= -1;
             this.ball.current_rebond++;
@@ -845,6 +919,23 @@ class Pong
 
     handle_goal(): void
     {
+        // mettre a jour data
+        if (this.ball.ball_x < 0)
+        {
+            if (this.ball.ball_y <= this.config.canvas_height)
+                this.data.point_perdu_moitie_up++;
+            else
+                this.data.point_perdu_moitie_down++;
+        }
+        else
+        {
+            if (this.ball.ball_y <= this.config.canvas_height)
+                this.data.point_marque_moitie_up++;
+            else
+                this.data.point_marque_moitie_down++;
+        }
+
+
         this.ball.ball_dir_x = 0;
         this.ball.ball_dir_y = 0;
         this.update_score(1);
@@ -862,7 +953,7 @@ class Pong
             this.ball.ball_y = this.config.canvas_height / 2;
             this.paddle.left_paddle_y = (this.config.canvas_height - this.config.paddle_height) / 2;
             this.paddle.right_paddle_y = (this.config.canvas_height - this.config.paddle_height) / 2;
-            this.draw();
+            this.draw(1);
             this.start_count_down();
         }, 1500);
 
@@ -976,8 +1067,14 @@ class Pong
         }
     }
 
-    draw(): void {
-        if (!this.ctx) return;
+    draw(interpolation: number): void
+    {
+        if (!this.ctx)
+            return;
+
+        // calcul des coordonnees interpoles
+        const interpolated_x = this.ball.prev_x + (this.ball.ball_x - this.ball.prev_x) * interpolation;
+        const interpolated_y = this.ball.prev_y + (this.ball.ball_y - this.ball.prev_y) * interpolation;
 
         // === 1. FOND NOIR AVEC DÉGRADÉ ===
         let bgGradient = this.ctx.createLinearGradient(0, 0, 0, this.config.canvas_height);
@@ -1024,7 +1121,14 @@ class Pong
         this.ctx.shadowBlur = 25;
         this.ctx.fillStyle = blink ? "#ffff00" : "#ff00ff";
         this.ctx.beginPath();
-        this.ctx.arc(this.ball.ball_x, this.ball.ball_y, pulse, 0, Math.PI * 2);
+        //this.ctx.arc(this.ball.ball_x, this.ball.ball_y, pulse, 0, Math.PI * 2);
+        this.ctx.arc(interpolated_x, interpolated_y, pulse, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // balle fantome
+        this.ctx.beginPath();
+        this.ctx.fillStyle = "gray";
+        this.ctx.arc(this.ball.ia_x, this.ball.ia_y, 10, 0,  Math.PI * 2)
         this.ctx.fill();
 
         // === 5. HUD (score, vitesse) AVEC POLICE PIXEL ===
@@ -1183,10 +1287,10 @@ class Pong
                 if (Math.abs(distance) < 30)
                     this.ia.random_move_2 = false;
             }
-            if (this.config.ball_speed > 11)
-                this.ia_ajustement(10, this.ia.random_move_2);
+            if (this.config.ball_speed > 13)
+                this.ia_ajustement(12, this.ia.random_move_2);
             else
-                this.ia_ajustement(5, this.ia.random_move_2);
+                this.ia_ajustement(8, this.ia.random_move_2);
             //console.log("FIN DE MOOOOVE");
             return ;
         }
@@ -1228,10 +1332,10 @@ class Pong
                 if (Math.abs(distance) < 30)
                     this.ia.random_move_2 = false;
             }
-            if (this.config.ball_speed > 11)
-                this.ia_ajustement(10, this.ia.random_move_2);
+            if (this.config.ball_speed > 13)
+                this.ia_ajustement(12, this.ia.random_move_2);
             else
-                this.ia_ajustement(5, this.ia.random_move_2);
+                this.ia_ajustement(10, this.ia.random_move_2);
             //console.log("FIN DE MOOOOVE");
             return ;
         }
@@ -1273,10 +1377,10 @@ class Pong
                 if (Math.abs(distance) < 30)
                     this.ia.random_move_2 = false;
             }            
-            if (this.config.ball_speed > 11)
-            this.ia_ajustement(10, false);
+            if (this.config.ball_speed > 13)
+                this.ia_ajustement(12, false);
             else
-                this.ia_ajustement(5, false);
+                this.ia_ajustement(10, false);
             //console.log("FIN DE MOOOOVE");
             return ;
         }
@@ -1318,10 +1422,10 @@ class Pong
                 if (Math.abs(distance) < 30)
                     this.ia.random_move_2 = false;
             }      
-            if (this.config.ball_speed > 11)
-                this.ia_ajustement(10, false);
+            if (this.config.ball_speed > 13)
+                this.ia_ajustement(12, false);
             else
-                this.ia_ajustement(5, false);
+                this.ia_ajustement(10, false);
             //console.log("FIN DE MOOOOVE");
             return ;
         }
@@ -1488,11 +1592,11 @@ class Pong
             ajust_percent_lose = 0.20;
 
         if (this.state.right_score - this.state.left_score >= 4)
-            ajust_percent_lose = 0.30;
+            ajust_percent_lose = 0.25;
 
         if (this.paddle.current_shot < 9)
         {
-            if (random < 0.15 + ajust_percent_lose)
+            if (random < 0.10 + ajust_percent_lose)
             {
                 if (this.ia.delta_paddle > 0)
                     this.ia.delta_error = 80 - this.ia.delta_paddle;
@@ -1502,7 +1606,7 @@ class Pong
         }        
         else if (this.paddle.current_shot < 12)
         {
-            if (random < 0.25 + ajust_percent_lose)
+            if (random < 0.15 + ajust_percent_lose)
             {
                 if (this.ia.delta_paddle > 0)
                     this.ia.delta_error = 80 - this.ia.delta_paddle;
@@ -1512,7 +1616,7 @@ class Pong
         }        
         else
         {
-            if (random < 0.35 + ajust_percent_lose)
+            if (random < 0.30 + ajust_percent_lose)
             {
                 if (this.ia.delta_paddle > 0)
                     this.ia.delta_error = 80 - this.ia.delta_paddle;

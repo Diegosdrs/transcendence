@@ -32,6 +32,8 @@ interface ball_interface
 {
     ball_x: number;
     ball_y: number;
+    prev_x: number;
+    prev_y: number;
     ball_dir_x: number;
     ball_dir_y: number;
     angle: number;
@@ -182,6 +184,8 @@ class Pong
         {
             ball_x: this.config.canvas_width / 2,
             ball_y: this.config.canvas_height / 2,
+            prev_x: 0,
+            prev_y: 0,
             ball_dir_x: 0,
             ball_dir_y: 0,
             angle: 0,
@@ -228,7 +232,7 @@ class Pong
 
     start(): void
     {
-        this.draw();
+        this.draw(1);
         //console.log("ca demarre");
         let countdown = 3;
         this.count_down.innerText = `Debut de partie dans`;
@@ -266,9 +270,23 @@ class Pong
     game_loop(): void
     {
         const current_time = performance.now()
-        const delta_time = current_time - this.last_frame_time;
-        this.last_frame_time = current_time;
 
+        // protection spirale de la mort
+        const raw_delta_time = current_time - this.last_frame_time;
+        let delta_time;
+        if (raw_delta_time > 1000)
+        {
+            console.log("Très long délai détecté, réinitialisation du timing");
+            delta_time = this.fixed_timestep; // Traiter comme un frame normal
+        }
+        else
+            delta_time = Math.min(raw_delta_time, 250); // Protection normale
+
+        if (raw_delta_time > 250)
+            console.warn(`Spirale de la mort évitée ! Temps réel: ${raw_delta_time.toFixed(2)}ms, temps traité: ${delta_time}ms`);
+        
+
+        this.last_frame_time = current_time;
         this.accumulator += delta_time;
 
         while(this.accumulator >= this.fixed_timestep)
@@ -282,8 +300,10 @@ class Pong
             this.accumulator -= this.fixed_timestep;
         }
 
+
+        const interpolation = this.accumulator / this.fixed_timestep;
         if (!this.state.is_paused)
-            this.draw();
+            this.draw(interpolation);
 
         if (this.state.game_running == true)
             this.animation_id = requestAnimationFrame(() => this.game_loop()); // boucle infinie à 60 FPS
@@ -343,7 +363,7 @@ class Pong
             this.paddle.paddles.p2_y = 3 * (this.config.canvas_height - this.config.paddle_height) / 4,
             this.paddle.paddles.p3_y = (this.config.canvas_height - this.config.paddle_height) / 4,
             this.paddle.paddles.p4_y = 3 * (this.config.canvas_height - this.config.paddle_height) / 4,
-            this.draw();
+            this.draw(1);
             this.start_count_down_for_restart();
             this.state.restart_active = false;
         }, 1500);
@@ -534,10 +554,14 @@ class Pong
 
     // Votre méthode update_ball() modifiée pour le 2v2 avec la détection continue
     update_ball(): void {
-        if (this.state.is_paused || this.state.count_down_active) return;
+        if (this.state.is_paused || this.state.count_down_active)
+            return;
+
+        // garder en memoire les positions differentes pour l'interpolation
+        this.ball.prev_x = this.ball.ball_x;
+        this.ball.prev_y = this.ball.ball_y;        
 
         // Sauvegarder la position précédente pour la détection continue
-        // C'est crucial car nous devons analyser le "chemin" parcouru par la balle
         const previousX = this.ball.ball_x;
         const previousY = this.ball.ball_y;
 
@@ -554,8 +578,8 @@ class Pong
 
         // Vérifier les collisions avec les paddles de GAUCHE
         // On vérifie seulement si la balle se dirige vers la gauche (optimisation)
-        if (this.ball.ball_dir_x < 0) {
-            // Créer les rectangles pour les deux paddles de gauche (P1 et P2)
+        if (this.ball.ball_dir_x < 0)
+        {
             const leftPaddles = [
                 {
                     id: 1,
@@ -667,7 +691,8 @@ class Pong
         this.ball.ball_y = newY;
 
         // Vérifier les buts (logique inchangée)
-        if (this.ball.ball_x < 0 || this.ball.ball_x > this.config.canvas_width) {
+        if (this.ball.ball_x < 0 || this.ball.ball_x > this.config.canvas_width)
+        {
             this.state.is_paused = true;
             console.log(`🎯 BUT ! ball_x = ${this.ball.ball_x} et ballspeed = ${this.config.ball_speed}`);
             this.handle_goal();
@@ -675,15 +700,28 @@ class Pong
         }
 
         // Rebonds sur les murs haut et bas (logique inchangée)
-        // Cette partie gère les collisions avec les bordures horizontales
-        if (this.ball.ball_y <= 5 || this.ball.ball_y >= this.config.canvas_height - 5) {
-            // Ajustement de position pour éviter que la balle reste coincée dans les murs
-            if (this.ball.ball_x <= 50) {
-                this.ball.ball_y = this.ball.ball_y <= 5 ? 6 : this.config.canvas_height - 6;
+        if (this.ball.ball_y <= 5 || this.ball.ball_y >= this.config.canvas_height - 5)
+        {
+            console.log(`AVANT rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
+
+            if (this.ball.ball_x <= 70 )
+            {
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                console.log("ca passe ici zeubi")
             }
-            if (this.ball.ball_x >= this.config.canvas_width - 50) {
-                this.ball.ball_y = this.ball.ball_y <= 5 ? 6 : this.config.canvas_width - 6;
+            if (this.ball.ball_x >= this.config.canvas_width - 70)
+            {
+                if (this.ball.ball_y <= 5)
+                    this.ball.ball_y = 6;
+                else
+                    this.ball.ball_y = this.config.canvas_height - 6;
+                console.log("ca passe ici woula")
             }
+
+            console.log(`APRES rebond avec ball_x = ${this.ball.ball_x} et ball_y = ${this.ball.ball_y}`);
             
             // Inverser la direction verticale et compter le rebond
             this.ball.ball_dir_y *= -1;
@@ -713,7 +751,7 @@ class Pong
             this.paddle.paddles.p2_y = 3 * (this.config.canvas_height - this.config.paddle_height) / 4,
             this.paddle.paddles.p3_y = (this.config.canvas_height - this.config.paddle_height) / 4,
             this.paddle.paddles.p4_y = 3 * (this.config.canvas_height - this.config.paddle_height) / 4,
-            this.draw();
+            this.draw(1);
             this.start_count_down();
         }, 1500);
 
@@ -838,8 +876,14 @@ class Pong
         }
     }
 
-    draw(): void {
-        if (!this.ctx) return;
+    draw(interpolation: number): void
+    {
+        if (!this.ctx)
+            return;
+
+        // calcul des coordonnees interpoles
+        const interpolated_x = this.ball.prev_x + (this.ball.ball_x - this.ball.prev_x) * interpolation;
+        const interpolated_y = this.ball.prev_y + (this.ball.ball_y - this.ball.prev_y) * interpolation;
 
         // === 1. FOND NOIR AVEC DÉGRADÉ ===
         let bgGradient = this.ctx.createLinearGradient(0, 0, 0, this.config.canvas_height);
@@ -904,7 +948,8 @@ class Pong
         this.ctx.shadowBlur = 25;
         this.ctx.fillStyle = blink ? "#ffff00" : "#ff00ff";
         this.ctx.beginPath();
-        this.ctx.arc(this.ball.ball_x, this.ball.ball_y, pulse, 0, Math.PI * 2);
+        //this.ctx.arc(this.ball.ball_x, this.ball.ball_y, pulse, 0, Math.PI * 2);
+        this.ctx.arc(interpolated_x, interpolated_y, pulse, 0, Math.PI * 2);
         this.ctx.fill();
 
         // === 5. HUD (score, vitesse) AVEC POLICE PIXEL ===
