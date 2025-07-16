@@ -1140,25 +1140,25 @@ class Pong {
         if (this.paddle.current_shot < 9) {
             if (random < 0.10 + ajust_percent_lose) {
                 if (this.ia.delta_paddle > 0)
-                    this.ia.delta_error = 80 - this.ia.delta_paddle;
+                    this.ia.delta_error = 70 - this.ia.delta_paddle;
                 else
-                    this.ia.delta_error = (80 + this.ia.delta_paddle) * -1;
+                    this.ia.delta_error = (70 + this.ia.delta_paddle) * -1;
             }
         }
         else if (this.paddle.current_shot < 12) {
             if (random < 0.15 + ajust_percent_lose) {
                 if (this.ia.delta_paddle > 0)
-                    this.ia.delta_error = 80 - this.ia.delta_paddle;
+                    this.ia.delta_error = 70 - this.ia.delta_paddle;
                 else
-                    this.ia.delta_error = (80 + this.ia.delta_paddle) * -1;
+                    this.ia.delta_error = (70 + this.ia.delta_paddle) * -1;
             }
         }
         else {
             if (random < 0.30 + ajust_percent_lose) {
                 if (this.ia.delta_paddle > 0)
-                    this.ia.delta_error = 80 - this.ia.delta_paddle;
+                    this.ia.delta_error = 70 - this.ia.delta_paddle;
                 else
-                    this.ia.delta_error = (80 + this.ia.delta_paddle) * -1;
+                    this.ia.delta_error = (70 + this.ia.delta_paddle) * -1;
             }
         }
         if (this.ia.delta_error != 0)
